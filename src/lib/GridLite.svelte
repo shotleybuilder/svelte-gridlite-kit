@@ -33,6 +33,9 @@
 	import FilterBar from './components/FilterBar.svelte';
 	import SortBar from './components/SortBar.svelte';
 	import GroupBar from './components/GroupBar.svelte';
+	import CellContextMenu from './components/CellContextMenu.svelte';
+	import ColumnMenu from './components/ColumnMenu.svelte';
+	import RowDetailModal from './components/RowDetailModal.svelte';
 
 	// ─── Props ────────────────────────────────────────────────────────────────
 
@@ -86,6 +89,23 @@
 	let filterExpanded = false;
 	let sortExpanded = false;
 	let groupExpanded = false;
+
+	// Context menu state
+	let contextMenu: {
+		x: number;
+		y: number;
+		value: unknown;
+		columnName: string;
+		columnLabel: string;
+		isNumeric: boolean;
+	} | null = null;
+
+	// Column menu state
+	let columnMenuOpen: string | null = null;
+
+	// Row detail state
+	let rowDetailOpen = false;
+	let rowDetailIndex = -1;
 
 	// Live query store
 	let store: LiveQueryStore | null = null;
@@ -295,6 +315,113 @@
 		setGrouping(newGrouping);
 	}
 
+	// ─── CellContextMenu handlers ─────────────────────────────────────────────
+
+	function handleCellContextMenu(
+		event: MouseEvent,
+		row: Record<string, unknown>,
+		col: ColumnMetadata
+	) {
+		event.preventDefault();
+		const colConfig = config?.columns?.find((c) => c.name === col.name);
+		contextMenu = {
+			x: event.clientX,
+			y: event.clientY,
+			value: row[col.name],
+			columnName: col.name,
+			columnLabel: colConfig?.label ?? col.name,
+			isNumeric: col.dataType === 'number'
+		};
+	}
+
+	function handleContextFilterEquals(columnName: string, value: unknown) {
+		const id = `ctx-${Date.now()}`;
+		const newFilter: FilterCondition = { id, field: columnName, operator: 'equals', value };
+		setFilters([...filters, newFilter], filterLogic);
+		filterExpanded = true;
+	}
+
+	function handleContextFilterNotEquals(columnName: string, value: unknown) {
+		const id = `ctx-${Date.now()}`;
+		const newFilter: FilterCondition = { id, field: columnName, operator: 'not_equals', value };
+		setFilters([...filters, newFilter], filterLogic);
+		filterExpanded = true;
+	}
+
+	function handleContextFilterGreaterThan(columnName: string, value: unknown) {
+		const id = `ctx-${Date.now()}`;
+		const newFilter: FilterCondition = { id, field: columnName, operator: 'greater_than', value };
+		setFilters([...filters, newFilter], filterLogic);
+		filterExpanded = true;
+	}
+
+	function handleContextFilterLessThan(columnName: string, value: unknown) {
+		const id = `ctx-${Date.now()}`;
+		const newFilter: FilterCondition = { id, field: columnName, operator: 'less_than', value };
+		setFilters([...filters, newFilter], filterLogic);
+		filterExpanded = true;
+	}
+
+	// ─── ColumnMenu handlers ──────────────────────────────────────────────────
+
+	function handleColumnMenuSort(columnName: string, direction: 'asc' | 'desc') {
+		// Replace or add sort for this column
+		const existing = sorting.findIndex((s) => s.column === columnName);
+		const newSorting = [...sorting];
+		if (existing >= 0) {
+			newSorting[existing] = { column: columnName, direction };
+		} else {
+			newSorting.push({ column: columnName, direction });
+		}
+		setSorting(newSorting);
+	}
+
+	function handleColumnMenuFilter(columnName: string) {
+		// Open filter bar with a new empty filter for this column
+		const id = `colmenu-${Date.now()}`;
+		const newFilter: FilterCondition = { id, field: columnName, operator: 'contains', value: '' };
+		setFilters([...filters, newFilter], filterLogic);
+		filterExpanded = true;
+	}
+
+	function handleColumnMenuGroup(columnName: string) {
+		// Add grouping for this column if not already grouped
+		if (!grouping.some((g) => g.column === columnName)) {
+			setGrouping([...grouping, { column: columnName }]);
+			groupExpanded = true;
+		}
+	}
+
+	function handleColumnMenuHide(_columnName: string) {
+		// Column visibility is a future feature — no-op for now
+	}
+
+	// ─── RowDetail handlers ───────────────────────────────────────────────────
+
+	function openRowDetail(index: number) {
+		rowDetailIndex = index;
+		rowDetailOpen = true;
+	}
+
+	function closeRowDetail() {
+		rowDetailOpen = false;
+		rowDetailIndex = -1;
+	}
+
+	function prevRowDetail() {
+		if (rowDetailIndex > 0) {
+			rowDetailIndex--;
+		}
+	}
+
+	function nextRowDetail() {
+		if (rowDetailIndex < storeState.rows.length - 1) {
+			rowDetailIndex++;
+		}
+	}
+
+	$: rowDetailRow = rowDetailIndex >= 0 ? storeState.rows[rowDetailIndex] ?? null : null;
+
 	// ─── Lifecycle ────────────────────────────────────────────────────────────
 
 	onMount(() => {
@@ -360,13 +487,43 @@
 			<thead class={`gridlite-thead ${classNames.thead ?? ''}`}>
 				<tr class={classNames.tr ?? ''}>
 					{#each orderedColumns as col}
-						<th class={`gridlite-th ${classNames.th ?? ''}`}>
-							{#if config?.columns}
-								{@const colConfig = config.columns.find((c) => c.name === col.name)}
-								{colConfig?.label ?? col.name}
-							{:else}
-								{col.name}
-							{/if}
+						<th class={`gridlite-th gridlite-th-interactive ${classNames.th ?? ''}`}>
+							<div class="gridlite-th-content">
+								<span class="gridlite-th-label">
+									{#if config?.columns}
+										{@const colConfig = config.columns.find((c) => c.name === col.name)}
+										{colConfig?.label ?? col.name}
+									{:else}
+										{col.name}
+									{/if}
+								</span>
+								{#if table}
+									<button
+										class="gridlite-th-menu-btn"
+										on:click|stopPropagation={() =>
+											(columnMenuOpen = columnMenuOpen === col.name ? null : col.name)}
+										title="Column options"
+										type="button"
+									>
+										<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+										</svg>
+									</button>
+									<ColumnMenu
+										columnName={col.name}
+										isOpen={columnMenuOpen === col.name}
+										{sorting}
+										canSort={features.sorting ?? false}
+										canFilter={features.filtering ?? false}
+										canGroup={features.grouping ?? false}
+										onSort={handleColumnMenuSort}
+										onFilter={handleColumnMenuFilter}
+										onGroup={handleColumnMenuGroup}
+										onHide={handleColumnMenuHide}
+										onClose={() => (columnMenuOpen = null)}
+									/>
+								{/if}
+							</div>
 						</th>
 					{/each}
 				</tr>
@@ -379,21 +536,30 @@
 						</td>
 					</tr>
 				{:else}
-					{#each storeState.rows as row}
+					{#each storeState.rows as row, rowIndex}
 						<tr
 							class={`gridlite-tr ${classNames.tr ?? ''}`}
-							on:click={() => onRowClick?.(row)}
-							role={onRowClick ? 'button' : undefined}
-							tabindex={onRowClick ? 0 : undefined}
+							on:click={() => {
+								if (features.rowDetail) {
+									openRowDetail(rowIndex);
+								}
+								onRowClick?.(row);
+							}}
+							role={onRowClick || features.rowDetail ? 'button' : undefined}
+							tabindex={onRowClick || features.rowDetail ? 0 : undefined}
 							on:keydown={(e) => {
-								if (onRowClick && (e.key === 'Enter' || e.key === ' ')) {
+								if ((e.key === 'Enter' || e.key === ' ')) {
 									e.preventDefault();
-									onRowClick(row);
+									if (features.rowDetail) openRowDetail(rowIndex);
+									onRowClick?.(row);
 								}
 							}}
 						>
 							{#each orderedColumns as col}
-								<td class={`gridlite-td ${classNames.td ?? ''}`}>
+								<td
+									class={`gridlite-td ${classNames.td ?? ''}`}
+									on:contextmenu={(e) => handleCellContextMenu(e, row, col)}
+								>
 									{#if config?.columns}
 										{@const colConfig = config.columns.find((c) => c.name === col.name)}
 										{#if colConfig?.format}
@@ -432,6 +598,62 @@
 					</button>
 				</div>
 			</div>
+		{/if}
+
+		{#if contextMenu}
+			<CellContextMenu
+				x={contextMenu.x}
+				y={contextMenu.y}
+				value={contextMenu.value}
+				columnName={contextMenu.columnName}
+				columnLabel={contextMenu.columnLabel}
+				isNumeric={contextMenu.isNumeric}
+				onFilterEquals={handleContextFilterEquals}
+				onFilterNotEquals={handleContextFilterNotEquals}
+				onFilterGreaterThan={handleContextFilterGreaterThan}
+				onFilterLessThan={handleContextFilterLessThan}
+				onClose={() => (contextMenu = null)}
+			/>
+		{/if}
+
+		{#if features.rowDetail}
+			<RowDetailModal
+				isOpen={rowDetailOpen}
+				hasPrev={rowDetailIndex > 0}
+				hasNext={rowDetailIndex < storeState.rows.length - 1}
+				onClose={closeRowDetail}
+				onPrev={prevRowDetail}
+				onNext={nextRowDetail}
+			>
+				{#if rowDetailRow}
+					<dl class="gridlite-row-detail">
+						{#each orderedColumns as col}
+							<div class="gridlite-row-detail-field">
+								<dt>
+									{#if config?.columns}
+										{@const colConfig = config.columns.find((c) => c.name === col.name)}
+										{colConfig?.label ?? col.name}
+									{:else}
+										{col.name}
+									{/if}
+								</dt>
+								<dd>
+									{#if config?.columns}
+										{@const colConfig = config.columns.find((c) => c.name === col.name)}
+										{#if colConfig?.format}
+											{colConfig.format(rowDetailRow[col.name])}
+										{:else}
+											{rowDetailRow[col.name] ?? '—'}
+										{/if}
+									{:else}
+										{rowDetailRow[col.name] ?? '—'}
+									{/if}
+								</dd>
+							</div>
+						{/each}
+					</dl>
+				{/if}
+			</RowDetailModal>
 		{/if}
 	{/if}
 </div>

@@ -9,6 +9,9 @@ export { default as FilterConditionRow } from "./components/FilterCondition.svel
 export { default as SortBar } from "./components/SortBar.svelte";
 export { default as SortCondition } from "./components/SortCondition.svelte";
 export { default as GroupBar } from "./components/GroupBar.svelte";
+export { default as CellContextMenu } from "./components/CellContextMenu.svelte";
+export { default as ColumnMenu } from "./components/ColumnMenu.svelte";
+export { default as RowDetailModal } from "./components/RowDetailModal.svelte";
 
 // TypeScript types
 export type {

@@ -19,6 +19,7 @@
 	let filteringEnabled = true;
 	let sortingEnabled = true;
 	let groupingEnabled = true;
+	let rowDetailEnabled = true;
 
 	const rowHeights: RowHeight[] = ['short', 'medium', 'tall', 'extra_tall'];
 	const spacings: ColumnSpacing[] = ['narrow', 'normal', 'wide'];
@@ -87,7 +88,7 @@
 
 <main>
 	<h1>Employees Demo</h1>
-	<p>60 rows, 10 columns. All column types: text, number, date, boolean, select-like.</p>
+	<p>60 rows, 10 columns. Right-click cells for context menu. Click column headers for sort/filter/group. Click rows for detail modal.</p>
 
 	<div class="controls">
 		<label>
@@ -137,6 +138,11 @@
 			<input type="checkbox" bind:checked={groupingEnabled} />
 			Grouping
 		</label>
+
+		<label>
+			<input type="checkbox" bind:checked={rowDetailEnabled} />
+			Row Detail
+		</label>
 	</div>
 
 	{#if ready && db}
@@ -167,7 +173,8 @@
 				pagination: paginationEnabled,
 				filtering: filteringEnabled,
 				sorting: sortingEnabled,
-				grouping: groupingEnabled
+				grouping: groupingEnabled,
+				rowDetail: rowDetailEnabled
 			}}
 		/>
 	{:else}
