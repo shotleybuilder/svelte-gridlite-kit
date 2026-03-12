@@ -789,6 +789,11 @@
 		notifyStateChange();
 	}
 
+	function handleColumnOrderChange(newOrder: string[]) {
+		columnOrder = newOrder;
+		notifyStateChange();
+	}
+
 	function getColumnLabel(col: ColumnMetadata): string {
 		const cfg = config?.columns?.find((c) => c.name === col.name);
 		return cfg?.label ?? col.name;
@@ -1157,6 +1162,7 @@
 								defaultVisibleColumns={config?.defaultVisibleColumns}
 								onVisibilityChange={setColumnVisibility}
 								onToggleAll={toggleAllColumns}
+								onOrderChange={handleColumnOrderChange}
 							/>
 						</div>
 					{/if}
