@@ -4,10 +4,23 @@
 	import { live } from '@electric-sql/pglite/live';
 	import type { PGliteWithLive } from '$lib/query/live.js';
 	import GridLite from '$lib/GridLite.svelte';
+	import type { RowHeight, ColumnSpacing } from '$lib/types.js';
 	import '$lib/styles/gridlite.css';
 
 	let db: PGliteWithLive | null = null;
 	let ready = false;
+	let gridRef: GridLite;
+
+	// Controls
+	let rowHeight: RowHeight = 'medium';
+	let columnSpacing: ColumnSpacing = 'normal';
+	let pageSize = 10;
+	let paginationEnabled = true;
+
+	const rowHeights: RowHeight[] = ['short', 'medium', 'tall', 'extra_tall'];
+	const spacings: ColumnSpacing[] = ['narrow', 'normal', 'wide'];
+	const departments = ['Engineering', 'Marketing', 'Sales', 'Finance', 'HR', 'Operations', 'Legal', 'Support'];
+	const statuses = ['Active', 'On Leave', 'Probation', 'Terminated'];
 
 	onMount(async () => {
 		db = new PGlite({ extensions: { live } }) as PGliteWithLive;
@@ -16,42 +29,124 @@
 			CREATE TABLE employees (
 				id SERIAL PRIMARY KEY,
 				name TEXT NOT NULL,
+				email TEXT NOT NULL,
 				department TEXT NOT NULL,
+				title TEXT NOT NULL,
 				salary NUMERIC(10, 2) NOT NULL,
 				hire_date DATE NOT NULL,
-				active BOOLEAN DEFAULT true
+				active BOOLEAN DEFAULT true,
+				rating NUMERIC(2, 1),
+				status TEXT DEFAULT 'Active'
 			)
 		`);
 
+		// Seed 60 rows of realistic data
+		const firstNames = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry', 'Iris', 'Jack',
+			'Karen', 'Leo', 'Mia', 'Nathan', 'Olivia', 'Paul', 'Quinn', 'Rachel', 'Sam', 'Tina',
+			'Uma', 'Victor', 'Wendy', 'Xavier', 'Yuki', 'Zara', 'Aaron', 'Bella', 'Carlos', 'Daphne'];
+		const lastNames = ['Johnson', 'Smith', 'Brown', 'Prince', 'Wilson', 'Miller', 'Lee', 'Ford', 'Chang', 'Ryan',
+			'Davis', 'Garcia', 'Martinez', 'Robinson', 'Clark', 'Lewis', 'Walker', 'Hall', 'Allen', 'Young'];
+		const titles = ['Engineer', 'Senior Engineer', 'Lead Engineer', 'Manager', 'Analyst', 'Coordinator',
+			'Director', 'Specialist', 'Associate', 'VP'];
+
+		const values: string[] = [];
+		for (let i = 0; i < 60; i++) {
+			const first = firstNames[i % firstNames.length];
+			const last = lastNames[i % lastNames.length];
+			const dept = departments[i % departments.length];
+			const title = titles[i % titles.length];
+			const salary = 55000 + Math.floor(Math.random() * 80000);
+			const year = 2018 + Math.floor(Math.random() * 6);
+			const month = String(1 + Math.floor(Math.random() * 12)).padStart(2, '0');
+			const day = String(1 + Math.floor(Math.random() * 28)).padStart(2, '0');
+			const active = Math.random() > 0.15;
+			const rating = (3 + Math.random() * 2).toFixed(1);
+			const status = statuses[Math.floor(Math.random() * statuses.length)];
+			const email = `${first.toLowerCase()}.${last.toLowerCase()}@example.com`;
+
+			values.push(
+				`('${first} ${last}', '${email}', '${dept}', '${title}', ${salary}, '${year}-${month}-${day}', ${active}, ${rating}, '${status}')`
+			);
+		}
+
 		await db.exec(`
-			INSERT INTO employees (name, department, salary, hire_date, active) VALUES
-				('Alice Johnson', 'Engineering', 95000, '2021-03-15', true),
-				('Bob Smith', 'Marketing', 72000, '2020-07-01', true),
-				('Charlie Brown', 'Engineering', 105000, '2019-11-20', true),
-				('Diana Prince', 'Sales', 68000, '2022-01-10', true),
-				('Eve Wilson', 'Engineering', 112000, '2018-05-22', true),
-				('Frank Miller', 'Marketing', 78000, '2021-09-30', false),
-				('Grace Lee', 'Sales', 71000, '2023-02-14', true),
-				('Henry Ford', 'Engineering', 98000, '2020-04-01', true),
-				('Iris Chang', 'Marketing', 82000, '2019-08-15', true),
-				('Jack Ryan', 'Sales', 65000, '2023-06-01', true)
+			INSERT INTO employees (name, email, department, title, salary, hire_date, active, rating, status)
+			VALUES ${values.join(',\n')}
 		`);
 
 		ready = true;
 	});
+
+	function handleRowClick(row: Record<string, unknown>) {
+		console.log('Row clicked:', row);
+	}
 </script>
 
 <main>
-	<h1>svelte-gridlite-kit</h1>
-	<p>Dev demo — Session 5a will expand this with feature flag controls.</p>
+	<h1>Employees Demo</h1>
+	<p>60 rows, 10 columns. All column types: text, number, date, boolean, select-like.</p>
+
+	<div class="controls">
+		<label>
+			Row Height:
+			<select bind:value={rowHeight}>
+				{#each rowHeights as rh}
+					<option value={rh}>{rh}</option>
+				{/each}
+			</select>
+		</label>
+
+		<label>
+			Spacing:
+			<select bind:value={columnSpacing}>
+				{#each spacings as sp}
+					<option value={sp}>{sp}</option>
+				{/each}
+			</select>
+		</label>
+
+		<label>
+			Page Size:
+			<select bind:value={pageSize} on:change={() => gridRef?.setPageSize(pageSize)}>
+				<option value={5}>5</option>
+				<option value={10}>10</option>
+				<option value={25}>25</option>
+				<option value={50}>50</option>
+			</select>
+		</label>
+
+		<label>
+			<input type="checkbox" bind:checked={paginationEnabled} />
+			Pagination
+		</label>
+	</div>
 
 	{#if ready && db}
 		<GridLite
+			bind:this={gridRef}
 			{db}
 			table="employees"
+			{rowHeight}
+			{columnSpacing}
+			onRowClick={handleRowClick}
 			config={{
 				id: 'demo-employees',
-				pagination: { pageSize: 5 }
+				pagination: { pageSize },
+				columns: [
+					{ name: 'id', label: 'ID' },
+					{ name: 'name', label: 'Name' },
+					{ name: 'email', label: 'Email' },
+					{ name: 'department', label: 'Department' },
+					{ name: 'title', label: 'Title' },
+					{ name: 'salary', label: 'Salary' },
+					{ name: 'hire_date', label: 'Hire Date' },
+					{ name: 'active', label: 'Active' },
+					{ name: 'rating', label: 'Rating' },
+					{ name: 'status', label: 'Status' }
+				]
+			}}
+			features={{
+				pagination: paginationEnabled
 			}}
 		/>
 	{:else}
@@ -61,8 +156,42 @@
 
 <style>
 	main {
-		max-width: 960px;
+		max-width: 1200px;
 		margin: 0 auto;
 		padding: 24px;
+	}
+
+	h1 {
+		margin: 0 0 4px 0;
+		font-size: 1.5rem;
+	}
+
+	p {
+		margin: 0 0 16px 0;
+		color: #666;
+	}
+
+	.controls {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		padding: 12px 0;
+		margin-bottom: 8px;
+		flex-wrap: wrap;
+	}
+
+	label {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 13px;
+		color: #495057;
+	}
+
+	select {
+		padding: 4px 8px;
+		border: 1px solid #dee2e6;
+		border-radius: 4px;
+		font-size: 13px;
 	}
 </style>
