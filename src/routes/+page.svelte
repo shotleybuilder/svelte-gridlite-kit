@@ -17,6 +17,8 @@
 	let pageSize = 10;
 	let paginationEnabled = true;
 	let filteringEnabled = true;
+	let sortingEnabled = true;
+	let groupingEnabled = true;
 
 	const rowHeights: RowHeight[] = ['short', 'medium', 'tall', 'extra_tall'];
 	const spacings: ColumnSpacing[] = ['narrow', 'normal', 'wide'];
@@ -125,6 +127,16 @@
 			<input type="checkbox" bind:checked={filteringEnabled} />
 			Filtering
 		</label>
+
+		<label>
+			<input type="checkbox" bind:checked={sortingEnabled} />
+			Sorting
+		</label>
+
+		<label>
+			<input type="checkbox" bind:checked={groupingEnabled} />
+			Grouping
+		</label>
 	</div>
 
 	{#if ready && db}
@@ -153,7 +165,9 @@
 			}}
 			features={{
 				pagination: paginationEnabled,
-				filtering: filteringEnabled
+				filtering: filteringEnabled,
+				sorting: sortingEnabled,
+				grouping: groupingEnabled
 			}}
 		/>
 	{:else}

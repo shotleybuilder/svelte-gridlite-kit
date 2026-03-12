@@ -31,6 +31,8 @@
 	} from './query/live.js';
 	import { runMigrations } from './state/migrations.js';
 	import FilterBar from './components/FilterBar.svelte';
+	import SortBar from './components/SortBar.svelte';
+	import GroupBar from './components/GroupBar.svelte';
 
 	// ─── Props ────────────────────────────────────────────────────────────────
 
@@ -80,8 +82,10 @@
 	let pageSize = config?.pagination?.pageSize ?? 25;
 	let totalRows = 0;
 
-	// Filter UI state
+	// Toolbar UI state
 	let filterExpanded = false;
+	let sortExpanded = false;
+	let groupExpanded = false;
 
 	// Live query store
 	let store: LiveQueryStore | null = null;
@@ -279,6 +283,18 @@
 		notifyStateChange();
 	}
 
+	// ─── SortBar handlers ─────────────────────────────────────────────────────
+
+	function handleSortingChange(newSorting: SortConfig[]) {
+		setSorting(newSorting);
+	}
+
+	// ─── GroupBar handlers ────────────────────────────────────────────────────
+
+	function handleGroupingChange(newGrouping: GroupConfig[]) {
+		setGrouping(newGrouping);
+	}
+
 	// ─── Lifecycle ────────────────────────────────────────────────────────────
 
 	onMount(() => {
@@ -300,21 +316,43 @@
 	{:else if storeState.error}
 		<div class="gridlite-empty">Error: {storeState.error.message}</div>
 	{:else}
-		{#if features.filtering && table}
+		{#if (features.filtering || features.sorting || features.grouping) && table}
 			<div class="gridlite-toolbar">
-				<FilterBar
-					{db}
-					{table}
-					{columns}
-					columnConfigs={config?.columns ?? []}
-					{allowedColumns}
-					conditions={filters}
-					onConditionsChange={handleFiltersChange}
-					logic={filterLogic}
-					onLogicChange={handleLogicChange}
-					isExpanded={filterExpanded}
-					onExpandedChange={(expanded) => (filterExpanded = expanded)}
-				/>
+				{#if features.filtering}
+					<FilterBar
+						{db}
+						{table}
+						{columns}
+						columnConfigs={config?.columns ?? []}
+						{allowedColumns}
+						conditions={filters}
+						onConditionsChange={handleFiltersChange}
+						logic={filterLogic}
+						onLogicChange={handleLogicChange}
+						isExpanded={filterExpanded}
+						onExpandedChange={(expanded) => (filterExpanded = expanded)}
+					/>
+				{/if}
+				{#if features.sorting}
+					<SortBar
+						{columns}
+						columnConfigs={config?.columns ?? []}
+						{sorting}
+						onSortingChange={handleSortingChange}
+						isExpanded={sortExpanded}
+						onExpandedChange={(expanded) => (sortExpanded = expanded)}
+					/>
+				{/if}
+				{#if features.grouping}
+					<GroupBar
+						{columns}
+						columnConfigs={config?.columns ?? []}
+						{grouping}
+						onGroupingChange={handleGroupingChange}
+						isExpanded={groupExpanded}
+						onExpandedChange={(expanded) => (groupExpanded = expanded)}
+					/>
+				{/if}
 			</div>
 		{/if}
 
