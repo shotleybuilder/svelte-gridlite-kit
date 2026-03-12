@@ -71,3 +71,19 @@ export {
   saveColumnState,
   loadColumnState,
 } from "./state/views.js";
+
+// Filter utilities
+export { getOperatorsForType } from "./utils/filters.js";
+export type { OperatorOption } from "./utils/filters.js";
+
+// Fuzzy search utilities
+export { fuzzyMatch, fuzzySearch, highlightMatches } from "./utils/fuzzy.js";
+export type { FuzzyMatch } from "./utils/fuzzy.js";
+
+// Formatters
+export {
+  formatDate,
+  formatCurrency,
+  formatNumber,
+  formatPercent,
+} from "./utils/formatters.js";
