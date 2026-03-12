@@ -35,3 +35,5 @@
 - Keep SKILL.md < 500 lines, use progressive disclosure
 - Demo pages are copy-pasteable references with heavy inline comments
 - CLAUDE.md is the index — points to skills + demo routes
+
+**Ended**: 2026-03-12
