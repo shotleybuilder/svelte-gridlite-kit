@@ -135,7 +135,7 @@ This avoids loading all rows upfront. Only expanded groups fetch their children.
 - **Lazy child loading:** Child rows are fetched only when a group is expanded (not all at once). This scales to large datasets — 10,000 rows grouped into 50 groups only loads the children of expanded groups
 - **Pagination interaction:** When grouping is active, pagination applies to group headers, not child rows. Page 1 shows N groups (each with their expanded children). The total count reflects the number of groups
 - **No live query for group detail:** Group detail queries use `db.query()` (one-shot), not `live.query()`. The top-level group summary can remain live, but child rows are fetched imperatively on expand. This avoids managing dozens of live subscriptions
-- **Multi-level grouping:** For 2+ group levels, the group summary query groups by all columns. Expanding a top-level group runs a sub-summary query for the next level. Child rows only appear at the deepest level
+- **Multi-level grouping (max 3 levels, like Airtable):** For 2+ group levels, the group summary query groups by all columns. Expanding a top-level group runs a sub-summary query for the next level. Child rows only appear at the deepest level. Hard limit of 3 group levels enforced in GroupBar and programmatic API
 - **Aggregation display:** If `GroupConfig.aggregations` are specified, the group header shows the aggregated values as small pills next to the count badge
 
 **Files to modify:**

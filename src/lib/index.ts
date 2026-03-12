@@ -44,10 +44,17 @@ export {
   buildGroupByClause,
   buildPaginationClause,
   buildGlobalSearchClause,
+  buildGroupSummaryQuery,
+  buildGroupCountQuery,
+  buildGroupDetailQuery,
   buildQuery,
   buildCountQuery,
 } from "./query/builder.js";
-export type { QueryOptions } from "./query/builder.js";
+export type {
+  QueryOptions,
+  GroupSummaryOptions,
+  GroupDetailOptions,
+} from "./query/builder.js";
 
 // Schema introspection
 export {

@@ -6,6 +6,9 @@ import {
   buildGroupByClause,
   buildPaginationClause,
   buildGlobalSearchClause,
+  buildGroupSummaryQuery,
+  buildGroupCountQuery,
+  buildGroupDetailQuery,
   buildQuery,
   buildCountQuery,
 } from "./builder.js";
@@ -549,5 +552,266 @@ describe("buildQuery with globalSearch", () => {
     expect(result.sql).toContain("WHERE");
     expect(result.sql).toContain("ILIKE");
     expect(result.params).toEqual(["bob"]);
+  });
+});
+
+// ─── buildGroupSummaryQuery ─────────────────────────────────────────────────
+
+describe("buildGroupSummaryQuery", () => {
+  it("single group column", () => {
+    const result = buildGroupSummaryQuery({
+      table: "employees",
+      grouping: [{ column: "department" }],
+    });
+    expect(result.sql).toContain('SELECT "department"');
+    expect(result.sql).toContain('COUNT(*) AS "_count"');
+    expect(result.sql).toContain('FROM "employees"');
+    expect(result.sql).toContain('GROUP BY "department"');
+    expect(result.sql).toContain('ORDER BY "department"');
+    expect(result.params).toEqual([]);
+  });
+
+  it("multi-level grouping (2 columns)", () => {
+    const result = buildGroupSummaryQuery({
+      table: "employees",
+      grouping: [{ column: "department" }, { column: "role" }],
+    });
+    expect(result.sql).toContain('"department"');
+    expect(result.sql).toContain('"role"');
+    expect(result.sql).toContain('GROUP BY "department", "role"');
+    expect(result.sql).toContain('ORDER BY "department", "role"');
+  });
+
+  it("with aggregations", () => {
+    const result = buildGroupSummaryQuery({
+      table: "employees",
+      grouping: [
+        {
+          column: "department",
+          aggregations: [
+            { column: "salary", function: "avg", alias: "avg_salary" },
+          ],
+        },
+      ],
+    });
+    expect(result.sql).toContain('AVG("salary") AS "avg_salary"');
+    expect(result.sql).toContain('COUNT(*) AS "_count"');
+  });
+
+  it("with filters", () => {
+    const result = buildGroupSummaryQuery({
+      table: "employees",
+      grouping: [{ column: "department" }],
+      filters: [fc("active", "equals", true)],
+    });
+    expect(result.sql).toContain('WHERE "active" = $1');
+    expect(result.sql).toContain('GROUP BY "department"');
+    expect(result.params).toEqual([true]);
+  });
+
+  it("with pagination on groups", () => {
+    const result = buildGroupSummaryQuery({
+      table: "employees",
+      grouping: [{ column: "department" }],
+      page: 1,
+      pageSize: 10,
+    });
+    expect(result.sql).toContain("LIMIT 10 OFFSET 10");
+  });
+
+  it("with explicit sorting", () => {
+    const result = buildGroupSummaryQuery({
+      table: "employees",
+      grouping: [{ column: "department" }],
+      sorting: [{ column: "department", direction: "desc" }],
+    });
+    expect(result.sql).toContain('ORDER BY "department" DESC');
+  });
+
+  it("with global search", () => {
+    const result = buildGroupSummaryQuery({
+      table: "employees",
+      grouping: [{ column: "department" }],
+      globalSearch: "eng",
+      allowedColumns: ["department", "name"],
+    });
+    expect(result.sql).toContain("ILIKE");
+    expect(result.params).toEqual(["eng"]);
+  });
+
+  it("throws with no grouping", () => {
+    expect(() =>
+      buildGroupSummaryQuery({ table: "employees", grouping: [] }),
+    ).toThrow("requires at least one group");
+  });
+
+  it("validates column names", () => {
+    expect(() =>
+      buildGroupSummaryQuery({
+        table: "employees",
+        grouping: [{ column: "bad col" }],
+      }),
+    ).toThrow("Invalid column name");
+  });
+
+  it("validates against allowedColumns", () => {
+    expect(() =>
+      buildGroupSummaryQuery({
+        table: "employees",
+        grouping: [{ column: "secret" }],
+        allowedColumns: ["department", "name"],
+      }),
+    ).toThrow("Column not found");
+  });
+});
+
+// ─── buildGroupCountQuery ───────────────────────────────────────────────────
+
+describe("buildGroupCountQuery", () => {
+  it("counts distinct groups", () => {
+    const result = buildGroupCountQuery({
+      table: "employees",
+      grouping: [{ column: "department" }],
+    });
+    expect(result.sql).toContain('SELECT COUNT(*) AS "total"');
+    expect(result.sql).toContain("FROM (SELECT 1");
+    expect(result.sql).toContain('GROUP BY "department"');
+    expect(result.sql).toContain(') AS "_groups"');
+    expect(result.params).toEqual([]);
+  });
+
+  it("counts with filters", () => {
+    const result = buildGroupCountQuery({
+      table: "employees",
+      grouping: [{ column: "department" }],
+      filters: [fc("active", "equals", true)],
+    });
+    expect(result.sql).toContain('WHERE "active" = $1');
+    expect(result.params).toEqual([true]);
+  });
+
+  it("multi-level grouping", () => {
+    const result = buildGroupCountQuery({
+      table: "employees",
+      grouping: [{ column: "department" }, { column: "role" }],
+    });
+    expect(result.sql).toContain('GROUP BY "department", "role"');
+  });
+
+  it("throws with no grouping", () => {
+    expect(() =>
+      buildGroupCountQuery({ table: "employees", grouping: [] }),
+    ).toThrow("requires at least one group");
+  });
+});
+
+// ─── buildGroupDetailQuery ──────────────────────────────────────────────────
+
+describe("buildGroupDetailQuery", () => {
+  it("single group value", () => {
+    const result = buildGroupDetailQuery({
+      table: "employees",
+      groupValues: [{ column: "department", value: "Engineering" }],
+    });
+    expect(result.sql).toBe(
+      'SELECT * FROM "employees" WHERE "department" = $1',
+    );
+    expect(result.params).toEqual(["Engineering"]);
+  });
+
+  it("multi-level group values", () => {
+    const result = buildGroupDetailQuery({
+      table: "employees",
+      groupValues: [
+        { column: "department", value: "Engineering" },
+        { column: "role", value: "Senior" },
+      ],
+    });
+    expect(result.sql).toBe(
+      'SELECT * FROM "employees" WHERE "department" = $1 AND "role" = $2',
+    );
+    expect(result.params).toEqual(["Engineering", "Senior"]);
+  });
+
+  it("handles NULL group value", () => {
+    const result = buildGroupDetailQuery({
+      table: "employees",
+      groupValues: [{ column: "department", value: null }],
+    });
+    expect(result.sql).toBe(
+      'SELECT * FROM "employees" WHERE "department" IS NULL',
+    );
+    expect(result.params).toEqual([]);
+  });
+
+  it("mixed NULL and non-NULL values", () => {
+    const result = buildGroupDetailQuery({
+      table: "employees",
+      groupValues: [
+        { column: "department", value: null },
+        { column: "role", value: "Senior" },
+      ],
+    });
+    expect(result.sql).toBe(
+      'SELECT * FROM "employees" WHERE "department" IS NULL AND "role" = $1',
+    );
+    expect(result.params).toEqual(["Senior"]);
+  });
+
+  it("with filters", () => {
+    const result = buildGroupDetailQuery({
+      table: "employees",
+      groupValues: [{ column: "department", value: "Engineering" }],
+      filters: [fc("active", "equals", true)],
+    });
+    expect(result.sql).toContain('"active" = $1');
+    expect(result.sql).toContain('"department" = $2');
+    expect(result.params).toEqual([true, "Engineering"]);
+  });
+
+  it("with sorting", () => {
+    const result = buildGroupDetailQuery({
+      table: "employees",
+      groupValues: [{ column: "department", value: "Engineering" }],
+      sorting: [{ column: "name", direction: "asc" }],
+    });
+    expect(result.sql).toContain('ORDER BY "name" ASC');
+  });
+
+  it("with global search", () => {
+    const result = buildGroupDetailQuery({
+      table: "employees",
+      groupValues: [{ column: "department", value: "Engineering" }],
+      globalSearch: "alice",
+      allowedColumns: ["department", "name"],
+    });
+    expect(result.sql).toContain("ILIKE");
+    expect(result.params).toContain("alice");
+    expect(result.params).toContain("Engineering");
+  });
+
+  it("throws with no group values", () => {
+    expect(() =>
+      buildGroupDetailQuery({ table: "employees", groupValues: [] }),
+    ).toThrow("requires at least one group value");
+  });
+
+  it("validates column names", () => {
+    expect(() =>
+      buildGroupDetailQuery({
+        table: "employees",
+        groupValues: [{ column: "bad col", value: "x" }],
+      }),
+    ).toThrow("Invalid column name");
+  });
+
+  it("validates against allowedColumns", () => {
+    expect(() =>
+      buildGroupDetailQuery({
+        table: "employees",
+        groupValues: [{ column: "secret", value: "x" }],
+        allowedColumns: ["department", "name"],
+      }),
+    ).toThrow("Column not found");
   });
 });

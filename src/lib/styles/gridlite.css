@@ -484,6 +484,99 @@
   color: #1a1a1a;
 }
 
+/* ─── Grouped View ───────────────────────────────────────────────────────── */
+
+.gridlite-group-row {
+  cursor: pointer;
+}
+
+.gridlite-group-row:hover {
+  background: #f1f3f5;
+}
+
+.gridlite-group-td {
+  background: #f8f9fa;
+  border-bottom: 1px solid #dee2e6;
+  padding: 0 !important;
+}
+
+.gridlite-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+/* Nesting indentation */
+.gridlite-group-level-0 {
+  padding-left: 12px;
+}
+
+.gridlite-group-level-1 {
+  padding-left: 32px;
+}
+
+.gridlite-group-level-2 {
+  padding-left: 52px;
+}
+
+.gridlite-group-chevron {
+  flex-shrink: 0;
+  color: #6c757d;
+  transition: transform 0.15s ease;
+  transform: rotate(0deg);
+}
+
+.gridlite-group-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+.gridlite-group-label {
+  color: #1a1a1a;
+}
+
+.gridlite-group-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #6c757d;
+  background: #e9ecef;
+  border-radius: 10px;
+}
+
+.gridlite-group-agg {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #495057;
+  background: #e8f4fd;
+  border-radius: 4px;
+}
+
+.gridlite-group-loading {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #868e96;
+  font-style: italic;
+}
+
+.gridlite-group-child {
+  background: #fff;
+}
+
+.gridlite-group-child:hover {
+  background: #f8f9fa;
+}
+
 /* ─── Empty State ────────────────────────────────────────────────────────── */
 
 .gridlite-empty {

@@ -296,6 +296,268 @@ export function buildGlobalSearchClause(
   };
 }
 
+// ─── Grouped View Queries ───────────────────────────────────────────────────
+
+export interface GroupSummaryOptions {
+  /** Table name */
+  table: string;
+  /** Group columns (max 3) */
+  grouping: GroupConfig[];
+  /** Filter conditions to apply before grouping */
+  filters?: FilterCondition[];
+  /** Filter logic */
+  filterLogic?: FilterLogic;
+  /** Allowed column names */
+  allowedColumns?: string[];
+  /** Global search term */
+  globalSearch?: string;
+  /** Columns to search for global search */
+  searchColumns?: string[];
+  /** Sorting for the group results */
+  sorting?: SortConfig[];
+  /** Pagination for groups */
+  page?: number;
+  /** Page size for groups */
+  pageSize?: number;
+}
+
+/**
+ * Build a query that returns distinct group values with COUNT(*) and
+ * optional aggregations. Used for the group header rows.
+ *
+ * Example output for grouping by department with avg(salary):
+ *   SELECT "department", COUNT(*) AS "_count", AVG("salary") AS "avg_salary"
+ *   FROM "employees" WHERE ... GROUP BY "department" ORDER BY "department"
+ */
+export function buildGroupSummaryQuery(
+  options: GroupSummaryOptions,
+): ParameterizedQuery {
+  const {
+    table,
+    grouping,
+    filters = [],
+    filterLogic = "and",
+    allowedColumns,
+    globalSearch,
+    searchColumns,
+    sorting = [],
+    page,
+    pageSize,
+  } = options;
+
+  if (grouping.length === 0) {
+    throw new Error("buildGroupSummaryQuery requires at least one group");
+  }
+
+  const tableName = quoteIdentifier(table);
+  const { selectColumns, groupBy } = buildGroupByClause(
+    grouping,
+    allowedColumns,
+  );
+
+  // WHERE from filters
+  const where = buildWhereClause(filters, filterLogic, 0, allowedColumns);
+
+  // Global search
+  const searchCols = searchColumns ?? allowedColumns ?? [];
+  const globalSearchClause = buildGlobalSearchClause(
+    globalSearch ?? "",
+    searchCols,
+    where.params.length,
+    allowedColumns,
+  );
+
+  const allParams = [...where.params, ...globalSearchClause.params];
+  let whereSQL = "";
+  if (where.sql && globalSearchClause.sql) {
+    whereSQL = `WHERE ${where.sql.replace(/^WHERE /, "")} AND ${globalSearchClause.sql}`;
+  } else if (where.sql) {
+    whereSQL = where.sql;
+  } else if (globalSearchClause.sql) {
+    whereSQL = `WHERE ${globalSearchClause.sql}`;
+  }
+
+  // Sort by group columns if no explicit sort, or by specified sort
+  let orderBy = "";
+  if (sorting.length > 0) {
+    orderBy = buildOrderByClause(sorting, allowedColumns);
+  } else {
+    // Default: sort by group columns ascending
+    const groupCols = grouping.map((g) =>
+      quoteIdentifier(g.column, allowedColumns),
+    );
+    orderBy = `ORDER BY ${groupCols.join(", ")}`;
+  }
+
+  // Pagination on groups
+  const pagination =
+    page !== undefined && pageSize !== undefined
+      ? buildPaginationClause(page, pageSize)
+      : "";
+
+  const parts = [
+    `SELECT ${selectColumns}`,
+    `FROM ${tableName}`,
+    whereSQL,
+    groupBy,
+    orderBy,
+    pagination,
+  ].filter(Boolean);
+
+  return { sql: parts.join(" "), params: allParams };
+}
+
+/**
+ * Build a count query for group summaries (how many groups exist).
+ */
+export function buildGroupCountQuery(
+  options: GroupSummaryOptions,
+): ParameterizedQuery {
+  const {
+    table,
+    grouping,
+    filters = [],
+    filterLogic = "and",
+    allowedColumns,
+    globalSearch,
+    searchColumns,
+  } = options;
+
+  if (grouping.length === 0) {
+    throw new Error("buildGroupCountQuery requires at least one group");
+  }
+
+  const tableName = quoteIdentifier(table);
+  const groupCols = grouping.map((g) =>
+    quoteIdentifier(g.column, allowedColumns),
+  );
+
+  const where = buildWhereClause(filters, filterLogic, 0, allowedColumns);
+  const searchCols = searchColumns ?? allowedColumns ?? [];
+  const globalSearchClause = buildGlobalSearchClause(
+    globalSearch ?? "",
+    searchCols,
+    where.params.length,
+    allowedColumns,
+  );
+
+  const allParams = [...where.params, ...globalSearchClause.params];
+  let whereSQL = "";
+  if (where.sql && globalSearchClause.sql) {
+    whereSQL = `WHERE ${where.sql.replace(/^WHERE /, "")} AND ${globalSearchClause.sql}`;
+  } else if (where.sql) {
+    whereSQL = where.sql;
+  } else if (globalSearchClause.sql) {
+    whereSQL = `WHERE ${globalSearchClause.sql}`;
+  }
+
+  const parts = [
+    `SELECT COUNT(*) AS "total" FROM (SELECT 1 FROM ${tableName}`,
+    whereSQL,
+    `GROUP BY ${groupCols.join(", ")}`,
+    `) AS "_groups"`,
+  ].filter(Boolean);
+
+  return { sql: parts.join(" "), params: allParams };
+}
+
+export interface GroupDetailOptions {
+  /** Table name */
+  table: string;
+  /** Values to match for parent groups: [{ column: "department", value: "Engineering" }] */
+  groupValues: { column: string; value: unknown }[];
+  /** Filter conditions */
+  filters?: FilterCondition[];
+  /** Filter logic */
+  filterLogic?: FilterLogic;
+  /** Sorting for child rows */
+  sorting?: SortConfig[];
+  /** Allowed column names */
+  allowedColumns?: string[];
+  /** Global search term */
+  globalSearch?: string;
+  /** Columns to search */
+  searchColumns?: string[];
+}
+
+/**
+ * Build a query that returns the detail rows for an expanded group.
+ *
+ * Adds WHERE constraints for each group column value on top of any
+ * existing filters. Used when a user expands a group header.
+ *
+ * Example: grouping by department, expanded "Engineering":
+ *   SELECT * FROM "employees" WHERE ... AND "department" = $N ORDER BY ...
+ */
+export function buildGroupDetailQuery(
+  options: GroupDetailOptions,
+): ParameterizedQuery {
+  const {
+    table,
+    groupValues,
+    filters = [],
+    filterLogic = "and",
+    sorting = [],
+    allowedColumns,
+    globalSearch,
+    searchColumns,
+  } = options;
+
+  if (groupValues.length === 0) {
+    throw new Error("buildGroupDetailQuery requires at least one group value");
+  }
+
+  const tableName = quoteIdentifier(table);
+
+  // Base WHERE from filters
+  const where = buildWhereClause(filters, filterLogic, 0, allowedColumns);
+
+  // Global search
+  const searchCols = searchColumns ?? allowedColumns ?? [];
+  const globalSearchClause = buildGlobalSearchClause(
+    globalSearch ?? "",
+    searchCols,
+    where.params.length,
+    allowedColumns,
+  );
+
+  let allParams = [...where.params, ...globalSearchClause.params];
+
+  // Build the combined WHERE from filters + global search
+  let baseWhereParts: string[] = [];
+  if (where.sql) {
+    baseWhereParts.push(where.sql.replace(/^WHERE /, ""));
+  }
+  if (globalSearchClause.sql) {
+    baseWhereParts.push(globalSearchClause.sql);
+  }
+
+  // Add group value constraints
+  const groupConstraints: string[] = [];
+  for (const gv of groupValues) {
+    const col = quoteIdentifier(gv.column, allowedColumns);
+    const paramIdx = allParams.length + 1;
+    if (gv.value === null) {
+      groupConstraints.push(`${col} IS NULL`);
+    } else {
+      groupConstraints.push(`${col} = $${paramIdx}`);
+      allParams = [...allParams, gv.value];
+    }
+  }
+
+  const allWhereParts = [...baseWhereParts, ...groupConstraints];
+  const whereSQL =
+    allWhereParts.length > 0 ? `WHERE ${allWhereParts.join(" AND ")}` : "";
+
+  const orderBy = buildOrderByClause(sorting, allowedColumns);
+
+  const parts = [`SELECT *`, `FROM ${tableName}`, whereSQL, orderBy].filter(
+    Boolean,
+  );
+
+  return { sql: parts.join(" "), params: allParams };
+}
+
 // ─── Full Query Builder ─────────────────────────────────────────────────────
 
 export interface QueryOptions {

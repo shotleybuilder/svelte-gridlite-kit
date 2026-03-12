@@ -22,7 +22,13 @@
 		ColumnSpacing
 	} from './types.js';
 	import { introspectTable, getColumnNames } from './query/schema.js';
-	import { buildQuery, buildCountQuery } from './query/builder.js';
+	import {
+		buildQuery,
+		buildCountQuery,
+		buildGroupSummaryQuery,
+		buildGroupCountQuery,
+		buildGroupDetailQuery
+	} from './query/builder.js';
 	import {
 		createLiveQueryStore,
 		type PGliteWithLive,
@@ -131,6 +137,26 @@
 	const COL_MAX_WIDTH = 1000;
 	const COL_DEFAULT_WIDTH = 180;
 
+	// Grouped view state
+	interface GroupRow {
+		/** The group column values at this level (e.g. { department: 'Engineering' }) */
+		values: Record<string, unknown>;
+		/** Summary values from GROUP BY (includes _count and any aggregations) */
+		summary: Record<string, unknown>;
+		/** Number of rows in this group */
+		count: number;
+		/** Nesting depth: 0 = top-level group, 1 = sub-group, 2 = sub-sub-group */
+		depth: number;
+		/** Sub-groups (when there are deeper group levels to show) */
+		subGroups: GroupRow[] | null;
+		/** Detail rows (only at the deepest group level) */
+		children: Record<string, unknown>[] | null;
+	}
+	let groupData: GroupRow[] = [];
+	let expandedGroups: Set<string> = new Set();
+	let totalGroups = 0;
+	let groupLoading: Set<string> = new Set();
+
 	// Row detail state
 	let rowDetailOpen = false;
 	let rowDetailIndex = -1;
@@ -184,6 +210,24 @@
 		return visibleColumns;
 	})();
 
+	// Valid groups (only entries where the user has selected a column)
+	$: validGrouping = grouping.filter((g) => g.column !== '');
+
+	// Whether grouping is active
+	$: isGrouped = validGrouping.length > 0;
+
+	// Columns to show in headers and child rows when grouping — excludes grouped columns
+	$: nonGroupedColumns = isGrouped
+		? orderedColumns.filter((col) => !validGrouping.some((g) => g.column === col.name))
+		: orderedColumns;
+
+	/** Build a composite key for a group row (using values up to its depth) */
+	function groupKey(group: GroupRow): string {
+		return Object.entries(group.values)
+			.map(([col, val]) => `${col}=${val === null || val === undefined ? '__null__' : String(val)}`)
+			.join('::');
+	}
+
 	// ─── Query Building & Subscription ────────────────────────────────────────
 
 	async function init() {
@@ -225,6 +269,12 @@
 			// Raw query mode — use as-is
 			sql = query;
 		} else if (table) {
+			if (isGrouped) {
+				// Grouped mode — use two-query strategy
+				await rebuildGroupedQuery();
+				return;
+			}
+
 			// Table mode — build query from state
 			const usePagination = features.pagination !== false;
 			const built = buildQuery({
@@ -232,7 +282,6 @@
 				filters,
 				filterLogic,
 				sorting,
-				grouping,
 				page: usePagination ? page : undefined,
 				pageSize: usePagination ? pageSize : undefined,
 				allowedColumns,
@@ -250,11 +299,214 @@
 			return;
 		}
 
+		// Clear grouped state when not grouping
+		groupData = [];
+		expandedGroups = new Set();
+		totalGroups = 0;
+
 		// Create live query store
 		store = createLiveQueryStore(db, sql, params);
 		store.subscribe((state) => {
 			storeState = state;
 		});
+	}
+
+	/** Clean aggregations (remove entries with empty column names) */
+	function cleanAgg(g: GroupConfig): GroupConfig {
+		return {
+			...g,
+			aggregations: g.aggregations?.filter((a) => a.column !== '') ?? undefined
+		};
+	}
+
+	async function rebuildGroupedQuery() {
+		if (!table) return;
+
+		try {
+			const usePagination = features.pagination !== false;
+
+			// Top-level: group by first column only
+			const topGroupConfig = cleanAgg(validGrouping[0]);
+
+			// 1. Fetch top-level group summaries
+			const summaryQuery = buildGroupSummaryQuery({
+				table,
+				grouping: [topGroupConfig],
+				filters,
+				filterLogic,
+				allowedColumns,
+				globalSearch: globalFilter || undefined,
+				sorting,
+				page: usePagination ? page : undefined,
+				pageSize: usePagination ? pageSize : undefined
+			});
+
+			const summaryResult = await db.query<Record<string, unknown>>(
+				summaryQuery.sql,
+				summaryQuery.params as any[]
+			);
+
+			// 2. Get total group count for pagination
+			if (usePagination) {
+				const countQuery = buildGroupCountQuery({
+					table,
+					grouping: [topGroupConfig],
+					filters,
+					filterLogic,
+					allowedColumns,
+					globalSearch: globalFilter || undefined
+				});
+				const countResult = await db.query<{ total: string }>(
+					countQuery.sql,
+					countQuery.params as any[]
+				);
+				totalGroups = parseInt(countResult.rows[0]?.total ?? '0', 10);
+				totalRows = totalGroups;
+			}
+
+			// 3. Build GroupRow[] from summary results
+			const topCol = validGrouping[0].column;
+			const newGroupData: GroupRow[] = summaryResult.rows.map((row) => {
+				const values: Record<string, unknown> = { [topCol]: row[topCol] };
+				const newGroup: GroupRow = {
+					values,
+					summary: { ...row },
+					count: Number(row._count ?? 0),
+					depth: 0,
+					subGroups: null,
+					children: null
+				};
+				const key = groupKey(newGroup);
+				const wasExpanded = expandedGroups.has(key);
+				const existing = groupData.find((g) => groupKey(g) === key);
+				if (wasExpanded && existing) {
+					newGroup.subGroups = existing.subGroups;
+					newGroup.children = existing.children;
+				}
+				return newGroup;
+			});
+
+			groupData = newGroupData;
+
+			// 4. Re-fetch sub-groups/children for any groups that were expanded
+			for (const group of groupData) {
+				const key = groupKey(group);
+				if (expandedGroups.has(key) && group.subGroups === null && group.children === null) {
+					await fetchGroupChildren(group);
+				}
+			}
+		} catch (err) {
+			error = err instanceof Error ? err.message : String(err);
+		}
+	}
+
+	/**
+	 * Fetch children for an expanded group.
+	 * If there are deeper group levels, fetches sub-group summaries.
+	 * If this is the deepest level, fetches detail rows.
+	 */
+	async function fetchGroupChildren(group: GroupRow) {
+		if (!table) return;
+
+		const key = groupKey(group);
+		groupLoading = new Set([...groupLoading, key]);
+
+		try {
+			const nextDepth = group.depth + 1;
+			const parentValues = Object.entries(group.values).map(([column, value]) => ({
+				column,
+				value
+			}));
+
+			if (nextDepth < validGrouping.length) {
+				// There are deeper group levels — fetch sub-group summaries
+				const subGroupConfig = cleanAgg(validGrouping[nextDepth]);
+
+				const summaryQuery = buildGroupSummaryQuery({
+					table,
+					grouping: [subGroupConfig],
+					filters: [
+						...filters,
+						// Add parent group constraints as equals filters
+						...parentValues.map((pv) => ({
+							id: `_group_${pv.column}`,
+							field: pv.column,
+							operator: pv.value === null ? 'is_empty' as const : 'equals' as const,
+							value: pv.value
+						}))
+					],
+					filterLogic,
+					allowedColumns,
+					globalSearch: globalFilter || undefined,
+					sorting
+				});
+
+				const result = await db.query<Record<string, unknown>>(
+					summaryQuery.sql,
+					summaryQuery.params as any[]
+				);
+
+				const subCol = validGrouping[nextDepth].column;
+				const subGroups: GroupRow[] = result.rows.map((row) => {
+					const subValues: Record<string, unknown> = {
+						...group.values,
+						[subCol]: row[subCol]
+					};
+					return {
+						values: subValues,
+						summary: { ...row },
+						count: Number(row._count ?? 0),
+						depth: nextDepth,
+						subGroups: null,
+						children: null
+					};
+				});
+
+				updateGroupInTree(key, { subGroups });
+			} else {
+				// Deepest level — fetch detail rows
+				const detailQuery = buildGroupDetailQuery({
+					table,
+					groupValues: parentValues,
+					filters,
+					filterLogic,
+					sorting,
+					allowedColumns,
+					globalSearch: globalFilter || undefined
+				});
+
+				const result = await db.query<Record<string, unknown>>(
+					detailQuery.sql,
+					detailQuery.params as any[]
+				);
+
+				updateGroupInTree(key, { children: result.rows });
+			}
+		} catch (err) {
+			console.error('Failed to fetch group children:', err);
+		} finally {
+			const next = new Set(groupLoading);
+			next.delete(key);
+			groupLoading = next;
+		}
+	}
+
+	/** Update a group node in the tree by key */
+	function updateGroupInTree(targetKey: string, updates: Partial<GroupRow>) {
+		groupData = groupData.map((g) => updateGroupNode(g, targetKey, updates));
+	}
+
+	function updateGroupNode(node: GroupRow, targetKey: string, updates: Partial<GroupRow>): GroupRow {
+		if (groupKey(node) === targetKey) {
+			return { ...node, ...updates };
+		}
+		if (node.subGroups) {
+			return {
+				...node,
+				subGroups: node.subGroups.map((sg) => updateGroupNode(sg, targetKey, updates))
+			};
+		}
+		return node;
 	}
 
 	async function updateTotalCount() {
@@ -291,7 +543,19 @@
 	}
 
 	export function setGrouping(newGrouping: GroupConfig[]) {
+		const prevValid = grouping.filter((g) => g.column !== '');
 		grouping = newGrouping;
+		const nowValid = newGrouping.filter((g) => g.column !== '');
+
+		// Only reset expand state and page if the valid group columns actually changed
+		const changed = prevValid.length !== nowValid.length ||
+			prevValid.some((g, i) => g.column !== nowValid[i]?.column);
+		if (changed) {
+			expandedGroups = new Set();
+			groupData = [];
+			page = 0;
+		}
+
 		rebuildQuery();
 		notifyStateChange();
 	}
@@ -330,6 +594,49 @@
 				pagination: { page, pageSize, totalRows, totalPages }
 			});
 		}
+	}
+
+	// ─── Grouped View handlers ────────────────────────────────────────────────
+
+	async function toggleGroupExpand(group: GroupRow) {
+		const key = groupKey(group);
+		const next = new Set(expandedGroups);
+		if (next.has(key)) {
+			next.delete(key);
+			expandedGroups = next;
+			// Clear sub-groups and children
+			updateGroupInTree(key, { subGroups: null, children: null });
+		} else {
+			next.add(key);
+			expandedGroups = next;
+			await fetchGroupChildren(group);
+		}
+	}
+
+	function getGroupLabel(group: GroupRow): string {
+		// Show only the value at this group's depth level
+		const groupConfig = validGrouping[group.depth];
+		if (!groupConfig) return '';
+		const val = group.values[groupConfig.column];
+		return val === null || val === undefined ? '(Empty)' : String(val);
+	}
+
+	function getGroupAggregations(group: GroupRow): { label: string; value: string }[] {
+		const aggs: { label: string; value: string }[] = [];
+		const groupConfig = validGrouping[group.depth];
+		if (groupConfig?.aggregations) {
+			for (const agg of groupConfig.aggregations) {
+				if (agg.column === '') continue;
+				const alias = agg.alias ?? `${agg.function}_${agg.column}`;
+				const rawVal = group.summary[alias];
+				if (rawVal !== null && rawVal !== undefined) {
+					const label = `${agg.function.charAt(0).toUpperCase() + agg.function.slice(1)} ${agg.column}`;
+					const value = typeof rawVal === 'number' ? rawVal.toLocaleString() : String(rawVal);
+					aggs.push({ label, value });
+				}
+			}
+		}
+		return aggs;
 	}
 
 	// ─── FilterBar handlers ───────────────────────────────────────────────────
@@ -621,6 +928,39 @@
 
 	$: rowDetailRow = rowDetailIndex >= 0 ? storeState.rows[rowDetailIndex] ?? null : null;
 
+	// Flatten the group tree into a renderable list of items
+	interface FlatGroupItem {
+		type: 'group';
+		group: GroupRow;
+	}
+	interface FlatChildItem {
+		type: 'child';
+		row: Record<string, unknown>;
+		depth: number;
+	}
+	type FlatItem = FlatGroupItem | FlatChildItem;
+
+	function flattenGroupTree(groups: GroupRow[]): FlatItem[] {
+		const items: FlatItem[] = [];
+		for (const group of groups) {
+			items.push({ type: 'group', group });
+			const key = groupKey(group);
+			if (expandedGroups.has(key)) {
+				if (group.subGroups) {
+					items.push(...flattenGroupTree(group.subGroups));
+				}
+				if (group.children) {
+					for (const row of group.children) {
+						items.push({ type: 'child', row, depth: group.depth + 1 });
+					}
+				}
+			}
+		}
+		return items;
+	}
+
+	$: flatGroupItems = isGrouped ? flattenGroupTree(groupData) : [];
+
 	// ─── Lifecycle ────────────────────────────────────────────────────────────
 
 	onMount(() => {
@@ -835,7 +1175,7 @@
 		>
 			<thead class={`gridlite-thead ${classNames.thead ?? ''}`}>
 				<tr class={classNames.tr ?? ''}>
-					{#each orderedColumns as col}
+					{#each (isGrouped ? nonGroupedColumns : orderedColumns) as col}
 						<th
 							class={`gridlite-th gridlite-th-interactive ${classNames.th ?? ''}`}
 							class:dragging={draggedColumnId === col.name}
@@ -901,51 +1241,141 @@
 				</tr>
 			</thead>
 			<tbody class={`gridlite-tbody ${classNames.tbody ?? ''}`}>
-				{#if storeState.rows.length === 0}
-					<tr>
-						<td colspan={orderedColumns.length} class="gridlite-empty">
-							No data
-						</td>
-					</tr>
-				{:else}
-					{#each storeState.rows as row, rowIndex}
-						<tr
-							class={`gridlite-tr ${classNames.tr ?? ''}`}
-							on:click={() => {
-								if (features.rowDetail) {
-									openRowDetail(rowIndex);
-								}
-								onRowClick?.(row);
-							}}
-							role={onRowClick || features.rowDetail ? 'button' : undefined}
-							tabindex={onRowClick || features.rowDetail ? 0 : undefined}
-							on:keydown={(e) => {
-								if ((e.key === 'Enter' || e.key === ' ')) {
-									e.preventDefault();
-									if (features.rowDetail) openRowDetail(rowIndex);
-									onRowClick?.(row);
-								}
-							}}
-						>
-							{#each orderedColumns as col}
-								<td
-									class={`gridlite-td ${classNames.td ?? ''}`}
-									on:contextmenu={(e) => handleCellContextMenu(e, row, col)}
+				{#if isGrouped}
+					<!-- Grouped view: flattened tree of group headers and child rows -->
+					{#if flatGroupItems.length === 0}
+						<tr>
+							<td colspan={nonGroupedColumns.length} class="gridlite-empty">
+								No data
+							</td>
+						</tr>
+					{:else}
+						{#each flatGroupItems as item}
+							{#if item.type === 'group'}
+								{@const group = item.group}
+								{@const key = groupKey(group)}
+								{@const expanded = expandedGroups.has(key)}
+								{@const loading = groupLoading.has(key)}
+								{@const aggs = getGroupAggregations(group)}
+								<!-- Group header row -->
+								<tr
+									class="gridlite-group-row"
+									on:click={() => toggleGroupExpand(group)}
+									role="button"
+									tabindex={0}
+									on:keydown={(e) => {
+										if (e.key === 'Enter' || e.key === ' ') {
+											e.preventDefault();
+											toggleGroupExpand(group);
+										}
+									}}
 								>
-									{#if config?.columns}
-										{@const colConfig = config.columns.find((c) => c.name === col.name)}
-										{#if colConfig?.format}
-											{colConfig.format(row[col.name])}
+									<td colspan={nonGroupedColumns.length} class="gridlite-group-td">
+										<div class="gridlite-group-header gridlite-group-level-{Math.min(group.depth, 2)}">
+											<svg
+												class="gridlite-group-chevron"
+												class:expanded
+												width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+											>
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+											</svg>
+											<span class="gridlite-group-label">{getGroupLabel(group)}</span>
+											<span class="gridlite-group-count">{group.count}</span>
+											{#each aggs as agg}
+												<span class="gridlite-group-agg" title={agg.label}>{agg.label}: {agg.value}</span>
+											{/each}
+											{#if loading}
+												<span class="gridlite-group-loading">Loading...</span>
+											{/if}
+										</div>
+									</td>
+								</tr>
+							{:else}
+								{@const row = item.row}
+								<!-- Child data row -->
+								<tr
+									class={`gridlite-tr gridlite-group-child ${classNames.tr ?? ''}`}
+									on:click={() => {
+										onRowClick?.(row);
+									}}
+									role={onRowClick ? 'button' : undefined}
+									tabindex={onRowClick ? 0 : undefined}
+									on:keydown={(e) => {
+										if ((e.key === 'Enter' || e.key === ' ')) {
+											e.preventDefault();
+											onRowClick?.(row);
+										}
+									}}
+								>
+									{#each nonGroupedColumns as col}
+										<td
+											class={`gridlite-td ${classNames.td ?? ''}`}
+											on:contextmenu={(e) => handleCellContextMenu(e, row, col)}
+										>
+											{#if config?.columns}
+												{@const colConfig = config.columns.find((c) => c.name === col.name)}
+												{#if colConfig?.format}
+													{colConfig.format(row[col.name])}
+												{:else}
+													{row[col.name] ?? ''}
+												{/if}
+											{:else}
+												{row[col.name] ?? ''}
+											{/if}
+										</td>
+									{/each}
+								</tr>
+							{/if}
+						{/each}
+					{/if}
+				{:else}
+					<!-- Flat (non-grouped) view -->
+					{#if storeState.rows.length === 0}
+						<tr>
+							<td colspan={orderedColumns.length} class="gridlite-empty">
+								No data
+							</td>
+						</tr>
+					{:else}
+						{#each storeState.rows as row, rowIndex}
+							<tr
+								class={`gridlite-tr ${classNames.tr ?? ''}`}
+								on:click={() => {
+									if (features.rowDetail) {
+										openRowDetail(rowIndex);
+									}
+									onRowClick?.(row);
+								}}
+								role={onRowClick || features.rowDetail ? 'button' : undefined}
+								tabindex={onRowClick || features.rowDetail ? 0 : undefined}
+								on:keydown={(e) => {
+									if ((e.key === 'Enter' || e.key === ' ')) {
+										e.preventDefault();
+										if (features.rowDetail) openRowDetail(rowIndex);
+										onRowClick?.(row);
+									}
+								}}
+							>
+								{#each orderedColumns as col}
+									<td
+										class={`gridlite-td ${classNames.td ?? ''}`}
+										on:contextmenu={(e) => handleCellContextMenu(e, row, col)}
+									>
+										{#if config?.columns}
+											{@const colConfig = config.columns.find((c) => c.name === col.name)}
+											{#if colConfig?.format}
+												{colConfig.format(row[col.name])}
+											{:else}
+												{row[col.name] ?? ''}
+											{/if}
 										{:else}
 											{row[col.name] ?? ''}
 										{/if}
-									{:else}
-										{row[col.name] ?? ''}
-									{/if}
-								</td>
-							{/each}
-						</tr>
-					{/each}
+									</td>
+								{/each}
+							</tr>
+						{/each}
+					{/if}
 				{/if}
 			</tbody>
 		</table>
@@ -953,7 +1383,7 @@
 		{#if features.pagination !== false && totalRows > 0}
 			<div class={`gridlite-pagination ${classNames.pagination ?? ''}`}>
 				<span>
-					Page {page + 1} of {totalPages} ({totalRows} rows)
+					Page {page + 1} of {totalPages} ({totalRows} {isGrouped ? 'groups' : 'rows'})
 				</span>
 				<div class="gridlite-pagination-controls">
 					<select
