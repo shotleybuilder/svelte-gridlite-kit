@@ -116,6 +116,11 @@
 	// Column visibility state
 	let columnVisibility: Record<string, boolean> = {};
 
+	// Column order state
+	let columnOrder: string[] = config?.defaultColumnOrder ?? [];
+	let draggedColumnId: string | null = null;
+	let dragOverColumnId: string | null = null;
+
 	// Column sizing state
 	let columnSizing: Record<string, number> = config?.defaultColumnSizing ?? {};
 	let resizingColumn: string | null = null;
@@ -163,10 +168,10 @@
 		return true;
 	});
 
-	// Ordered columns
+	// Ordered columns (columnOrder state takes priority, then config default, then schema order)
 	$: orderedColumns = (() => {
-		if (config?.defaultColumnOrder && config.defaultColumnOrder.length > 0) {
-			const order = config.defaultColumnOrder;
+		const order = columnOrder.length > 0 ? columnOrder : (config?.defaultColumnOrder ?? []);
+		if (order.length > 0) {
 			return [...visibleColumns].sort((a, b) => {
 				const ai = order.indexOf(a.name);
 				const bi = order.indexOf(b.name);
@@ -315,7 +320,7 @@
 		if (onStateChange) {
 			onStateChange({
 				columnVisibility: Object.fromEntries(visibleColumns.map((c) => [c.name, true])),
-				columnOrder: orderedColumns.map((c) => c.name),
+				columnOrder: columnOrder.length > 0 ? columnOrder : orderedColumns.map((c) => c.name),
 				columnSizing,
 				filters,
 				filterLogic,
@@ -530,6 +535,64 @@
 		window.removeEventListener('touchmove', handleResizeMove);
 		window.removeEventListener('touchend', handleResizeEnd);
 		notifyStateChange();
+	}
+
+	// ─── Column Reorder handlers ──────────────────────────────────────────────
+
+	function initColumnOrder() {
+		if (columnOrder.length === 0 && columns.length > 0) {
+			columnOrder = columns.map((c) => c.name);
+		}
+	}
+
+	function handleDragStart(event: DragEvent, columnName: string) {
+		if (features.columnReordering === false) return;
+		draggedColumnId = columnName;
+		if (event.dataTransfer) {
+			event.dataTransfer.effectAllowed = 'move';
+			event.dataTransfer.setData('text/plain', columnName);
+		}
+	}
+
+	function handleDragOver(event: DragEvent, columnName: string) {
+		if (features.columnReordering === false || !draggedColumnId) return;
+		event.preventDefault();
+		if (event.dataTransfer) {
+			event.dataTransfer.dropEffect = 'move';
+		}
+		dragOverColumnId = columnName;
+	}
+
+	function handleDrop(event: DragEvent, targetColumnId: string) {
+		if (features.columnReordering === false) return;
+		event.preventDefault();
+		if (!draggedColumnId || draggedColumnId === targetColumnId) {
+			draggedColumnId = null;
+			dragOverColumnId = null;
+			return;
+		}
+
+		// Ensure columnOrder is initialized
+		initColumnOrder();
+
+		const oldIndex = columnOrder.indexOf(draggedColumnId);
+		const newIndex = columnOrder.indexOf(targetColumnId);
+
+		if (oldIndex !== -1 && newIndex !== -1) {
+			const newColumnOrder = [...columnOrder];
+			const [moved] = newColumnOrder.splice(oldIndex, 1);
+			newColumnOrder.splice(newIndex, 0, moved);
+			columnOrder = newColumnOrder;
+			notifyStateChange();
+		}
+
+		draggedColumnId = null;
+		dragOverColumnId = null;
+	}
+
+	function handleDragEnd() {
+		draggedColumnId = null;
+		dragOverColumnId = null;
 	}
 
 	// ─── RowDetail handlers ───────────────────────────────────────────────────
@@ -775,9 +838,20 @@
 					{#each orderedColumns as col}
 						<th
 							class={`gridlite-th gridlite-th-interactive ${classNames.th ?? ''}`}
+							class:dragging={draggedColumnId === col.name}
+							class:drag-over={dragOverColumnId === col.name && draggedColumnId !== col.name}
 							style={features.columnResizing ? `width: ${getColumnWidth(col.name)}px;` : ''}
+							on:dragover={(e) => handleDragOver(e, col.name)}
+							on:drop={(e) => handleDrop(e, col.name)}
 						>
-							<div class="gridlite-th-content">
+							<!-- svelte-ignore a11y-no-static-element-interactions -->
+							<div
+								class="gridlite-th-content"
+								draggable={features.columnReordering ?? false}
+								on:dragstart={(e) => handleDragStart(e, col.name)}
+								on:dragend={handleDragEnd}
+								style={features.columnReordering ? 'cursor: grab;' : ''}
+							>
 								<span class="gridlite-th-label">
 									{#if config?.columns}
 										{@const colConfig = config.columns.find((c) => c.name === col.name)}

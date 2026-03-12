@@ -21,6 +21,7 @@
 	let globalSearchEnabled = true;
 	let columnVisibilityEnabled = true;
 	let columnResizingEnabled = true;
+	let columnReorderingEnabled = true;
 	const departments = ['Engineering', 'Marketing', 'Sales', 'Finance', 'HR', 'Operations', 'Legal', 'Support'];
 	const statuses = ['Active', 'On Leave', 'Probation', 'Terminated'];
 
@@ -133,6 +134,11 @@
 			<input type="checkbox" bind:checked={columnResizingEnabled} />
 			Column Resizing
 		</label>
+
+		<label>
+			<input type="checkbox" bind:checked={columnReorderingEnabled} />
+			Column Reordering
+		</label>
 	</div>
 
 	{#if ready && db}
@@ -165,7 +171,8 @@
 				rowDetail: rowDetailEnabled,
 				globalSearch: globalSearchEnabled,
 				columnVisibility: columnVisibilityEnabled,
-				columnResizing: columnResizingEnabled
+				columnResizing: columnResizingEnabled,
+				columnReordering: columnReorderingEnabled
 			}}
 		/>
 	{:else if initError}
