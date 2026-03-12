@@ -52,3 +52,22 @@ export type {
   LiveQueryStore,
   PGliteWithLive,
 } from "./query/live.js";
+
+// State persistence — migrations
+export {
+  runMigrations,
+  getLatestVersion,
+  isMigrated,
+} from "./state/migrations.js";
+
+// State persistence — views
+export {
+  saveView,
+  loadView,
+  loadViews,
+  loadDefaultView,
+  setDefaultView,
+  deleteView,
+  saveColumnState,
+  loadColumnState,
+} from "./state/views.js";
