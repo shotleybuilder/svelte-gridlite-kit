@@ -43,6 +43,7 @@ export {
   buildOrderByClause,
   buildGroupByClause,
   buildPaginationClause,
+  buildGlobalSearchClause,
   buildQuery,
   buildCountQuery,
 } from "./query/builder.js";

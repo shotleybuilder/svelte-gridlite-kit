@@ -258,6 +258,44 @@ export function buildPaginationClause(page: number, pageSize: number): string {
   return `LIMIT ${pageSize} OFFSET ${offset}`;
 }
 
+// ─── Global Search ──────────────────────────────────────────────────────────
+
+/**
+ * Build a WHERE-compatible clause for global search across text columns.
+ *
+ * Generates `(col1::text ILIKE '%' || $N || '%' OR col2::text ILIKE ...)`
+ * using a single parameter for the search term. The `::text` cast allows
+ * searching non-text columns (numbers, dates, booleans) as strings.
+ *
+ * @param searchTerm - The search string
+ * @param textColumns - Column names to search across
+ * @param paramOffset - Starting parameter index
+ * @param allowedColumns - Optional allowlist
+ */
+export function buildGlobalSearchClause(
+  searchTerm: string,
+  textColumns: string[],
+  paramOffset: number = 0,
+  allowedColumns?: string[],
+): ParameterizedQuery {
+  if (!searchTerm || textColumns.length === 0) {
+    return { sql: "", params: [] };
+  }
+
+  const paramIndex = paramOffset + 1;
+  const p = `$${paramIndex}`;
+
+  const parts = textColumns.map((col) => {
+    const quoted = quoteIdentifier(col, allowedColumns);
+    return `${quoted}::text ILIKE '%' || ${p} || '%'`;
+  });
+
+  return {
+    sql: `(${parts.join(" OR ")})`,
+    params: [searchTerm],
+  };
+}
+
 // ─── Full Query Builder ─────────────────────────────────────────────────────
 
 export interface QueryOptions {
@@ -284,6 +322,12 @@ export interface QueryOptions {
 
   /** Allowed column names (from schema introspection) */
   allowedColumns?: string[];
+
+  /** Global search term (ILIKE across searchColumns) */
+  globalSearch?: string;
+
+  /** Columns to search for global search (defaults to all allowedColumns) */
+  searchColumns?: string[];
 }
 
 /**
@@ -302,6 +346,8 @@ export function buildQuery(options: QueryOptions): ParameterizedQuery {
     page,
     pageSize,
     allowedColumns,
+    globalSearch,
+    searchColumns,
   } = options;
 
   const tableName = quoteIdentifier(table);
@@ -312,8 +358,29 @@ export function buildQuery(options: QueryOptions): ParameterizedQuery {
     allowedColumns,
   );
 
-  // WHERE clause
+  // WHERE clause from filters
   const where = buildWhereClause(filters, filterLogic, 0, allowedColumns);
+
+  // Global search clause
+  const searchCols = searchColumns ?? allowedColumns ?? [];
+  const globalSearchClause = buildGlobalSearchClause(
+    globalSearch ?? "",
+    searchCols,
+    where.params.length,
+    allowedColumns,
+  );
+
+  // Combine WHERE and global search
+  const allParams = [...where.params, ...globalSearchClause.params];
+  let whereSQL = "";
+  if (where.sql && globalSearchClause.sql) {
+    // Strip "WHERE " prefix from where.sql, combine with AND
+    whereSQL = `WHERE ${where.sql.replace(/^WHERE /, "")} AND ${globalSearchClause.sql}`;
+  } else if (where.sql) {
+    whereSQL = where.sql;
+  } else if (globalSearchClause.sql) {
+    whereSQL = `WHERE ${globalSearchClause.sql}`;
+  }
 
   // ORDER BY clause
   const orderBy = buildOrderByClause(sorting, allowedColumns);
@@ -328,7 +395,7 @@ export function buildQuery(options: QueryOptions): ParameterizedQuery {
   const parts = [
     `SELECT ${selectColumns}`,
     `FROM ${tableName}`,
-    where.sql,
+    whereSQL,
     groupBy,
     orderBy,
     pagination,
@@ -336,7 +403,7 @@ export function buildQuery(options: QueryOptions): ParameterizedQuery {
 
   return {
     sql: parts.join(" "),
-    params: where.params,
+    params: allParams,
   };
 }
 
@@ -345,19 +412,46 @@ export function buildQuery(options: QueryOptions): ParameterizedQuery {
  * Uses the same filters but no sorting/grouping/pagination.
  */
 export function buildCountQuery(options: QueryOptions): ParameterizedQuery {
-  const { table, filters = [], filterLogic = "and", allowedColumns } = options;
+  const {
+    table,
+    filters = [],
+    filterLogic = "and",
+    allowedColumns,
+    globalSearch,
+    searchColumns,
+  } = options;
 
   const tableName = quoteIdentifier(table);
   const where = buildWhereClause(filters, filterLogic, 0, allowedColumns);
 
+  // Global search clause
+  const searchCols = searchColumns ?? allowedColumns ?? [];
+  const globalSearchClause = buildGlobalSearchClause(
+    globalSearch ?? "",
+    searchCols,
+    where.params.length,
+    allowedColumns,
+  );
+
+  // Combine WHERE and global search
+  const allParams = [...where.params, ...globalSearchClause.params];
+  let whereSQL = "";
+  if (where.sql && globalSearchClause.sql) {
+    whereSQL = `WHERE ${where.sql.replace(/^WHERE /, "")} AND ${globalSearchClause.sql}`;
+  } else if (where.sql) {
+    whereSQL = where.sql;
+  } else if (globalSearchClause.sql) {
+    whereSQL = `WHERE ${globalSearchClause.sql}`;
+  }
+
   const parts = [
     'SELECT COUNT(*) AS "total"',
     `FROM ${tableName}`,
-    where.sql,
+    whereSQL,
   ].filter(Boolean);
 
   return {
     sql: parts.join(" "),
-    params: where.params,
+    params: allParams,
   };
 }

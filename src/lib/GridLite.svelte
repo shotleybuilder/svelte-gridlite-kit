@@ -81,9 +81,11 @@
 	let filterLogic: FilterLogic = config?.filterLogic ?? 'and';
 	let sorting: SortConfig[] = config?.defaultSorting ?? [];
 	let grouping: GroupConfig[] = config?.defaultGrouping ?? [];
+	let globalFilter = '';
 	let page = 0;
 	let pageSize = config?.pagination?.pageSize ?? 25;
 	let totalRows = 0;
+	let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 
 	// Toolbar UI state
 	let filterExpanded = false;
@@ -202,7 +204,8 @@
 				grouping,
 				page: usePagination ? page : undefined,
 				pageSize: usePagination ? pageSize : undefined,
-				allowedColumns
+				allowedColumns,
+				globalSearch: globalFilter || undefined
 			});
 			sql = built.sql;
 			params = built.params;
@@ -230,7 +233,8 @@
 				table,
 				filters,
 				filterLogic,
-				allowedColumns
+				allowedColumns,
+				globalSearch: globalFilter || undefined
 			});
 			const result = await db.query<{ total: string }>(countQuery.sql, countQuery.params as any[]);
 			totalRows = parseInt(result.rows[0]?.total ?? '0', 10);
@@ -274,6 +278,13 @@
 		notifyStateChange();
 	}
 
+	export function setGlobalFilter(search: string) {
+		globalFilter = search;
+		page = 0;
+		rebuildQuery();
+		notifyStateChange();
+	}
+
 	function notifyStateChange() {
 		if (onStateChange) {
 			onStateChange({
@@ -284,7 +295,7 @@
 				filterLogic,
 				sorting,
 				grouping,
-				globalFilter: '',
+				globalFilter,
 				pagination: { page, pageSize, totalRows, totalPages }
 			});
 		}
@@ -313,6 +324,27 @@
 
 	function handleGroupingChange(newGrouping: GroupConfig[]) {
 		setGrouping(newGrouping);
+	}
+
+	// ─── Global Search handler ────────────────────────────────────────────────
+
+	function handleGlobalSearchInput(event: Event) {
+		const value = (event.target as HTMLInputElement).value;
+		globalFilter = value;
+		clearTimeout(searchDebounceTimer);
+		searchDebounceTimer = setTimeout(() => {
+			page = 0;
+			rebuildQuery();
+			notifyStateChange();
+		}, 300);
+	}
+
+	function clearGlobalSearch() {
+		globalFilter = '';
+		clearTimeout(searchDebounceTimer);
+		page = 0;
+		rebuildQuery();
+		notifyStateChange();
 	}
 
 	// ─── CellContextMenu handlers ─────────────────────────────────────────────
@@ -429,6 +461,7 @@
 	});
 
 	onDestroy(() => {
+		clearTimeout(searchDebounceTimer);
 		if (store) {
 			store.destroy();
 		}
@@ -443,7 +476,7 @@
 	{:else if storeState.error}
 		<div class="gridlite-empty">Error: {storeState.error.message}</div>
 	{:else}
-		{#if (features.filtering || features.sorting || features.grouping) && table}
+		{#if (features.filtering || features.sorting || features.grouping || features.globalSearch) && table}
 			<div class="gridlite-toolbar">
 				{#if features.filtering}
 					<FilterBar
@@ -479,6 +512,27 @@
 						isExpanded={groupExpanded}
 						onExpandedChange={(expanded) => (groupExpanded = expanded)}
 					/>
+				{/if}
+				{#if features.globalSearch}
+					<div class="gridlite-search">
+						<svg class="gridlite-search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+						</svg>
+						<input
+							class="gridlite-search-input"
+							type="text"
+							placeholder="Search all columns..."
+							value={globalFilter}
+							on:input={handleGlobalSearchInput}
+						/>
+						{#if globalFilter}
+							<button class="gridlite-search-clear" on:click={clearGlobalSearch} type="button" title="Clear search">
+								<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+								</svg>
+							</button>
+						{/if}
+					</div>
 				{/if}
 			</div>
 		{/if}
@@ -578,12 +632,21 @@
 			</tbody>
 		</table>
 
-		{#if features.pagination !== false && totalPages > 1}
+		{#if features.pagination !== false && totalRows > 0}
 			<div class={`gridlite-pagination ${classNames.pagination ?? ''}`}>
 				<span>
 					Page {page + 1} of {totalPages} ({totalRows} rows)
 				</span>
-				<div>
+				<div class="gridlite-pagination-controls">
+					<select
+						class="gridlite-page-size-select"
+						value={pageSize}
+						on:change={(e) => setPageSize(Number(e.currentTarget.value))}
+					>
+						{#each config?.pagination?.pageSizeOptions ?? [10, 25, 50, 100] as size}
+							<option value={size}>{size} / page</option>
+						{/each}
+					</select>
 					<button disabled={page === 0} on:click={() => setPage(0)}>
 						First
 					</button>

@@ -20,6 +20,7 @@
 	let sortingEnabled = true;
 	let groupingEnabled = true;
 	let rowDetailEnabled = true;
+	let globalSearchEnabled = true;
 
 	const rowHeights: RowHeight[] = ['short', 'medium', 'tall', 'extra_tall'];
 	const spacings: ColumnSpacing[] = ['narrow', 'normal', 'wide'];
@@ -110,16 +111,6 @@
 		</label>
 
 		<label>
-			Page Size:
-			<select bind:value={pageSize} on:change={() => gridRef?.setPageSize(pageSize)}>
-				<option value={5}>5</option>
-				<option value={10}>10</option>
-				<option value={25}>25</option>
-				<option value={50}>50</option>
-			</select>
-		</label>
-
-		<label>
 			<input type="checkbox" bind:checked={paginationEnabled} />
 			Pagination
 		</label>
@@ -142,6 +133,11 @@
 		<label>
 			<input type="checkbox" bind:checked={rowDetailEnabled} />
 			Row Detail
+		</label>
+
+		<label>
+			<input type="checkbox" bind:checked={globalSearchEnabled} />
+			Global Search
 		</label>
 	</div>
 
@@ -174,7 +170,8 @@
 				filtering: filteringEnabled,
 				sorting: sortingEnabled,
 				grouping: groupingEnabled,
-				rowDetail: rowDetailEnabled
+				rowDetail: rowDetailEnabled,
+				globalSearch: globalSearchEnabled
 			}}
 		/>
 	{:else}

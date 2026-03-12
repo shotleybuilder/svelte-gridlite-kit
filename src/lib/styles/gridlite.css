@@ -110,6 +110,65 @@
   flex-wrap: wrap;
 }
 
+/* ─── Global Search ──────────────────────────────────────────────────────── */
+
+.gridlite-search {
+  display: flex;
+  align-items: center;
+  position: relative;
+  margin-left: auto;
+}
+
+.gridlite-search-icon {
+  position: absolute;
+  left: 8px;
+  width: 16px;
+  height: 16px;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+.gridlite-search-input {
+  padding: 6px 28px 6px 28px;
+  font-size: 0.875rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  background: white;
+  min-width: 200px;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.gridlite-search-input:focus {
+  outline: none;
+  border-color: #4c6ef5;
+  box-shadow: 0 0 0 3px rgba(76, 110, 245, 0.1);
+}
+
+.gridlite-search-input::placeholder {
+  color: #9ca3af;
+}
+
+.gridlite-search-clear {
+  position: absolute;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: none;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  color: #9ca3af;
+  transition: color 0.15s;
+}
+
+.gridlite-search-clear:hover {
+  color: #374151;
+}
+
 /* ─── Pagination ─────────────────────────────────────────────────────────── */
 
 .gridlite-pagination {
@@ -119,6 +178,12 @@
   padding: 8px 0;
   font-size: 13px;
   color: #495057;
+}
+
+.gridlite-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .gridlite-pagination button {
@@ -137,6 +202,15 @@
 .gridlite-pagination button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.gridlite-page-size-select {
+  padding: 4px 8px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  font-size: 13px;
+  background: #fff;
+  margin-right: 8px;
 }
 
 /* ─── Filter Bar ─────────────────────────────────────────────────────────── */
