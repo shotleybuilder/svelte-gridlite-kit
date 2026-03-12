@@ -180,6 +180,7 @@ Sessions are ordered by dependency — each builds on the previous. Each session
 S1 (types + query builder)
 ├── S2 (schema + live queries)
 │   └── S5 (GridLite main component)
+│       └── S5a (dev demo app)
 │       ├── S6 (FilterBar)
 │       ├── S7 (SortBar + GroupBar)
 │       ├── S8 (context menus + row detail)
@@ -192,9 +193,34 @@ S1 (types + query builder)
 S10 (integration + packaging) depends on all above
 ```
 
+---
+
+### Session 5a: Dev Demo App
+
+**Goal:** Build a standalone demo app in `src/routes/` so the library can be manually tested via `npm run dev` without installing into a real project. Every subsequent UI session (6–9) benefits from this — new components can be exercised immediately.
+
+**Inserts after:** Session 5 (GridLite main component must exist)
+**Blocks:** Nothing — all later sessions can proceed without it, but it accelerates UI development
+
+**Deliverables:**
+- `src/routes/+page.svelte` — Main demo page: initializes an in-memory PGLite instance, creates and seeds a sample table (e.g. employees with name, department, salary, hire_date, active), renders GridLite with feature flags enabled
+- `src/routes/+layout.svelte` — Minimal layout with nav if multiple demo pages
+- Sample data seeding helper (inline or small utility) — ~50–100 rows of realistic test data
+- Optional: `src/routes/wide-table/+page.svelte` — Wide table demo (many columns) to test horizontal scroll, column visibility, resizing
+
+**Key decisions:**
+- PGLite initialized client-side only (browser WASM constraint) — use `onMount` or SvelteKit `ssr: false`
+- Sample data should cover all column types: text, number, date, boolean, select-like (department/status)
+- Demo page should expose toggle controls for feature flags so each feature can be tested in isolation
+- Keep it simple — this is a dev tool, not a marketing page
+
+**Reference:** svelte-table-kit `src/routes/+page.svelte` (258 LOC), `src/routes/wide-table/+page.svelte` (336 LOC)
+
+---
+
 ## Estimated Scope
 
-- ~10 sessions
+- ~10 sessions + 1 demo session (5a)
 - svelte-table-kit reference: ~6,300 LOC across 20 files
 - Expected gridlite output: similar LOC count but with SQL-heavy logic replacing array iteration
 - Each session targets 1-3 files + tests, committable independently
