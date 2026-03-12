@@ -4,7 +4,6 @@
 	import { live } from '@electric-sql/pglite/live';
 	import type { PGliteWithLive } from '$lib/query/live.js';
 	import GridLite from '$lib/GridLite.svelte';
-	import type { RowHeight, ColumnSpacing } from '$lib/types.js';
 	import '$lib/styles/gridlite.css';
 
 	let db: PGliteWithLive | null = null;
@@ -13,8 +12,6 @@
 	let gridRef: GridLite;
 
 	// Controls
-	let rowHeight: RowHeight = 'medium';
-	let columnSpacing: ColumnSpacing = 'normal';
 	let pageSize = 10;
 	let paginationEnabled = true;
 	let filteringEnabled = true;
@@ -22,9 +19,7 @@
 	let groupingEnabled = true;
 	let rowDetailEnabled = true;
 	let globalSearchEnabled = true;
-
-	const rowHeights: RowHeight[] = ['short', 'medium', 'tall', 'extra_tall'];
-	const spacings: ColumnSpacing[] = ['narrow', 'normal', 'wide'];
+	let columnVisibilityEnabled = true;
 	const departments = ['Engineering', 'Marketing', 'Sales', 'Finance', 'HR', 'Operations', 'Legal', 'Support'];
 	const statuses = ['Active', 'On Leave', 'Probation', 'Terminated'];
 
@@ -99,24 +94,6 @@
 
 	<div class="controls">
 		<label>
-			Row Height:
-			<select bind:value={rowHeight}>
-				{#each rowHeights as rh}
-					<option value={rh}>{rh}</option>
-				{/each}
-			</select>
-		</label>
-
-		<label>
-			Spacing:
-			<select bind:value={columnSpacing}>
-				{#each spacings as sp}
-					<option value={sp}>{sp}</option>
-				{/each}
-			</select>
-		</label>
-
-		<label>
 			<input type="checkbox" bind:checked={paginationEnabled} />
 			Pagination
 		</label>
@@ -145,6 +122,11 @@
 			<input type="checkbox" bind:checked={globalSearchEnabled} />
 			Global Search
 		</label>
+
+		<label>
+			<input type="checkbox" bind:checked={columnVisibilityEnabled} />
+			Column Visibility
+		</label>
 	</div>
 
 	{#if ready && db}
@@ -152,8 +134,6 @@
 			bind:this={gridRef}
 			{db}
 			table="employees"
-			{rowHeight}
-			{columnSpacing}
 			onRowClick={handleRowClick}
 			config={{
 				id: 'demo-employees',
@@ -177,7 +157,8 @@
 				sorting: sortingEnabled,
 				grouping: groupingEnabled,
 				rowDetail: rowDetailEnabled,
-				globalSearch: globalSearchEnabled
+				globalSearch: globalSearchEnabled,
+				columnVisibility: columnVisibilityEnabled
 			}}
 		/>
 	{:else if initError}
@@ -219,13 +200,6 @@
 		gap: 6px;
 		font-size: 13px;
 		color: #495057;
-	}
-
-	select {
-		padding: 4px 8px;
-		border: 1px solid #dee2e6;
-		border-radius: 4px;
-		font-size: 13px;
 	}
 
 	.error {

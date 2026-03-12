@@ -105,6 +105,17 @@
 	// Column menu state
 	let columnMenuOpen: string | null = null;
 
+	// View controls UI state
+	let showRowHeightMenu = false;
+	let showColumnSpacingMenu = false;
+	let showColumnPicker = false;
+
+	const rowHeightOptions: RowHeight[] = ['short', 'medium', 'tall', 'extra_tall'];
+	const columnSpacingOptions: ColumnSpacing[] = ['narrow', 'normal', 'wide'];
+
+	// Column visibility state
+	let columnVisibility: Record<string, boolean> = {};
+
 	// Row detail state
 	let rowDetailOpen = false;
 	let rowDetailIndex = -1;
@@ -129,8 +140,13 @@
 		classNames.container ?? ''
 	].filter(Boolean).join(' ');
 
-	// Visible columns (respecting config)
+	// Visible columns (respecting config + columnVisibility toggle state)
 	$: visibleColumns = columns.filter((col) => {
+		// If columnVisibility has an explicit entry, use it
+		if (col.name in columnVisibility) {
+			return columnVisibility[col.name];
+		}
+		// Otherwise fall back to config defaults
 		if (config?.defaultVisibleColumns) {
 			return config.defaultVisibleColumns.includes(col.name);
 		}
@@ -424,8 +440,49 @@
 		}
 	}
 
-	function handleColumnMenuHide(_columnName: string) {
-		// Column visibility is a future feature — no-op for now
+	function handleColumnMenuHide(columnName: string) {
+		toggleColumnVisibility(columnName);
+	}
+
+	// ─── View Controls handlers ───────────────────────────────────────────────
+
+	function toggleColumnVisibility(columnName: string) {
+		const current = columnVisibility[columnName] ?? true;
+		columnVisibility = { ...columnVisibility, [columnName]: !current };
+		notifyStateChange();
+	}
+
+	function toggleAllColumns(show: boolean) {
+		const newVisibility: Record<string, boolean> = {};
+		for (const col of columns) {
+			newVisibility[col.name] = show;
+		}
+		columnVisibility = newVisibility;
+		notifyStateChange();
+	}
+
+	function getColumnLabel(col: ColumnMetadata): string {
+		const cfg = config?.columns?.find((c) => c.name === col.name);
+		return cfg?.label ?? col.name;
+	}
+
+	function isColumnVisible(columnName: string): boolean {
+		if (columnName in columnVisibility) {
+			return columnVisibility[columnName];
+		}
+		if (config?.defaultVisibleColumns) {
+			return config.defaultVisibleColumns.includes(columnName);
+		}
+		return true;
+	}
+
+	function closeViewMenus(event: MouseEvent) {
+		const target = event.target as HTMLElement;
+		if (!target.closest('.gridlite-view-control')) {
+			showRowHeightMenu = false;
+			showColumnSpacingMenu = false;
+			showColumnPicker = false;
+		}
 	}
 
 	// ─── RowDetail handlers ───────────────────────────────────────────────────
@@ -468,6 +525,8 @@
 	});
 </script>
 
+<svelte:window on:click={closeViewMenus} />
+
 <div class={containerClass}>
 	{#if error}
 		<div class="gridlite-empty">{error}</div>
@@ -476,7 +535,7 @@
 	{:else if storeState.error}
 		<div class="gridlite-empty">Error: {storeState.error.message}</div>
 	{:else}
-		{#if (features.filtering || features.sorting || features.grouping || features.globalSearch) && table}
+		{#if table}
 			<div class="gridlite-toolbar">
 				{#if features.filtering}
 					<FilterBar
@@ -534,6 +593,126 @@
 						{/if}
 					</div>
 				{/if}
+
+				<!-- View Controls -->
+				<div class="gridlite-view-controls">
+					<!-- Row Height -->
+					<div class="gridlite-view-control">
+						<button
+							class="gridlite-view-control-btn"
+							class:active={showRowHeightMenu}
+							on:click|stopPropagation={() => {
+								showRowHeightMenu = !showRowHeightMenu;
+								showColumnSpacingMenu = false;
+								showColumnPicker = false;
+							}}
+							type="button"
+							title="Row height"
+						>
+							<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+							</svg>
+						</button>
+						{#if showRowHeightMenu}
+							<div class="gridlite-view-dropdown">
+								<div class="gridlite-view-dropdown-title">Row Height</div>
+								{#each rowHeightOptions as rh}
+									<button
+										class="gridlite-view-dropdown-item"
+										class:selected={rowHeight === rh}
+										on:click={() => {
+											rowHeight = rh;
+											showRowHeightMenu = false;
+										}}
+										type="button"
+									>
+										{rh === 'extra_tall' ? 'Extra Tall' : rh.charAt(0).toUpperCase() + rh.slice(1)}
+									</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
+
+					<!-- Column Spacing -->
+					<div class="gridlite-view-control">
+						<button
+							class="gridlite-view-control-btn"
+							class:active={showColumnSpacingMenu}
+							on:click|stopPropagation={() => {
+								showColumnSpacingMenu = !showColumnSpacingMenu;
+								showRowHeightMenu = false;
+								showColumnPicker = false;
+							}}
+							type="button"
+							title="Column spacing"
+						>
+							<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4v16M15 4v16M4 9h16M4 15h16" />
+							</svg>
+						</button>
+						{#if showColumnSpacingMenu}
+							<div class="gridlite-view-dropdown">
+								<div class="gridlite-view-dropdown-title">Column Spacing</div>
+								{#each columnSpacingOptions as sp}
+									<button
+										class="gridlite-view-dropdown-item"
+										class:selected={columnSpacing === sp}
+										on:click={() => {
+											columnSpacing = sp;
+											showColumnSpacingMenu = false;
+										}}
+										type="button"
+									>
+										{sp.charAt(0).toUpperCase() + sp.slice(1)}
+									</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
+
+					<!-- Column Visibility -->
+					{#if features.columnVisibility}
+						<div class="gridlite-view-control">
+							<button
+								class="gridlite-view-control-btn"
+								class:active={showColumnPicker}
+								on:click|stopPropagation={() => {
+									showColumnPicker = !showColumnPicker;
+									showRowHeightMenu = false;
+									showColumnSpacingMenu = false;
+								}}
+								type="button"
+								title="Columns"
+							>
+								<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+								</svg>
+								Columns
+							</button>
+							{#if showColumnPicker}
+								<div class="gridlite-view-dropdown gridlite-column-picker">
+									<div class="gridlite-view-dropdown-title">Columns</div>
+									<div class="gridlite-column-picker-actions">
+										<button type="button" on:click={() => toggleAllColumns(true)}>Show All</button>
+										<button type="button" on:click={() => toggleAllColumns(false)}>Hide All</button>
+									</div>
+									<div class="gridlite-column-picker-list">
+										{#each columns as col}
+											<label class="gridlite-column-picker-item">
+												<input
+													type="checkbox"
+													checked={isColumnVisible(col.name)}
+													on:change={() => toggleColumnVisibility(col.name)}
+												/>
+												{getColumnLabel(col)}
+											</label>
+										{/each}
+									</div>
+								</div>
+							{/if}
+						</div>
+					{/if}
+				</div>
 			</div>
 		{/if}
 
