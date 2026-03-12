@@ -3,6 +3,7 @@
 	import { PGlite } from '@electric-sql/pglite';
 	import { live } from '@electric-sql/pglite/live';
 	import type { PGliteWithLive } from '$lib/query/live.js';
+	import type { ToolbarLayout } from '$lib/types.js';
 	import GridLite from '$lib/GridLite.svelte';
 	import '$lib/styles/gridlite.css';
 
@@ -22,6 +23,8 @@
 	let columnVisibilityEnabled = true;
 	let columnResizingEnabled = true;
 	let columnReorderingEnabled = true;
+	let selectedLayout: ToolbarLayout = 'airtable';
+	const layoutOptions: ToolbarLayout[] = ['airtable', 'excel', 'shadcn', 'aggrid'];
 	const departments = ['Engineering', 'Marketing', 'Sales', 'Finance', 'HR', 'Operations', 'Legal', 'Support'];
 	const statuses = ['Active', 'On Leave', 'Probation', 'Terminated'];
 
@@ -139,6 +142,15 @@
 			<input type="checkbox" bind:checked={columnReorderingEnabled} />
 			Column Reordering
 		</label>
+
+		<label>
+			Layout:
+			<select bind:value={selectedLayout}>
+				{#each layoutOptions as layout}
+					<option value={layout}>{layout}</option>
+				{/each}
+			</select>
+		</label>
 	</div>
 
 	{#if ready && db}
@@ -146,6 +158,7 @@
 			bind:this={gridRef}
 			{db}
 			table="employees"
+			toolbarLayout={selectedLayout}
 			onRowClick={handleRowClick}
 			config={{
 				id: 'demo-employees',

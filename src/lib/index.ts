@@ -35,6 +35,7 @@ export type {
   RowHeight,
   ColumnSpacing,
   ParameterizedQuery,
+  ToolbarLayout,
 } from "./types.js";
 
 // Query builder

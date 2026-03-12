@@ -19,7 +19,8 @@
 		ColumnMetadata,
 		ClassNameMap,
 		RowHeight,
-		ColumnSpacing
+		ColumnSpacing,
+		ToolbarLayout
 	} from './types.js';
 	import { introspectTable, getColumnNames } from './query/schema.js';
 	import {
@@ -69,6 +70,9 @@
 
 	/** Column spacing variant */
 	export let columnSpacing: ColumnSpacing = 'normal';
+
+	/** Toolbar layout preset */
+	export let toolbarLayout: ToolbarLayout = 'airtable';
 
 	/** Row click callback */
 	export let onRowClick: ((row: Record<string, unknown>) => void) | undefined = undefined;
@@ -179,6 +183,7 @@
 		'gridlite-container',
 		`gridlite-row-${rowHeight}`,
 		`gridlite-spacing-${columnSpacing}`,
+		`gridlite-layout-${toolbarLayout}`,
 		classNames.container ?? ''
 	].filter(Boolean).join(' ');
 
@@ -999,68 +1004,90 @@
 	{:else if storeState.error}
 		<div class="gridlite-empty">Error: {storeState.error.message}</div>
 	{:else}
-		{#if table}
+		{#if table && toolbarLayout !== 'aggrid'}
 			<div class="gridlite-toolbar">
-				{#if features.filtering}
-					<FilterBar
-						{db}
-						{table}
-						{columns}
-						columnConfigs={config?.columns ?? []}
-						{allowedColumns}
-						conditions={filters}
-						onConditionsChange={handleFiltersChange}
-						logic={filterLogic}
-						onLogicChange={handleLogicChange}
-						isExpanded={filterExpanded}
-						onExpandedChange={(expanded) => (filterExpanded = expanded)}
-					/>
-				{/if}
-				{#if features.sorting}
-					<SortBar
-						{columns}
-						columnConfigs={config?.columns ?? []}
-						{sorting}
-						onSortingChange={handleSortingChange}
-						isExpanded={sortExpanded}
-						onExpandedChange={(expanded) => (sortExpanded = expanded)}
-					/>
-				{/if}
-				{#if features.grouping}
-					<GroupBar
-						{columns}
-						columnConfigs={config?.columns ?? []}
-						{grouping}
-						onGroupingChange={handleGroupingChange}
-						isExpanded={groupExpanded}
-						onExpandedChange={(expanded) => (groupExpanded = expanded)}
-					/>
-				{/if}
-				{#if features.globalSearch}
-					<div class="gridlite-search">
-						<svg class="gridlite-search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-						</svg>
-						<input
-							class="gridlite-search-input"
-							type="text"
-							placeholder="Search all columns..."
-							value={globalFilter}
-							on:input={handleGlobalSearchInput}
+				<!-- Column Visibility (data control) -->
+				{#if features.columnVisibility}
+					<div class="gridlite-toolbar-columns gridlite-view-control">
+						<button
+							class="gridlite-view-control-btn"
+							class:active={showColumnPicker}
+							on:click|stopPropagation={() => {
+								showColumnPicker = !showColumnPicker;
+								showRowHeightMenu = false;
+								showColumnSpacingMenu = false;
+							}}
+							type="button"
+							title="Columns"
+						>
+							<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+							</svg>
+							<span class="gridlite-btn-label">Columns</span>
+						</button>
+						<ColumnPicker
+							{columns}
+							columnConfigs={config?.columns ?? []}
+							{columnVisibility}
+							{columnOrder}
+							isOpen={showColumnPicker}
+							defaultVisibleColumns={config?.defaultVisibleColumns}
+							onVisibilityChange={setColumnVisibility}
+							onToggleAll={toggleAllColumns}
+							onOrderChange={handleColumnOrderChange}
 						/>
-						{#if globalFilter}
-							<button class="gridlite-search-clear" on:click={clearGlobalSearch} type="button" title="Clear search">
-								<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-								</svg>
-							</button>
-						{/if}
 					</div>
 				{/if}
 
-				<!-- View Controls -->
-				<div class="gridlite-view-controls">
-					<!-- Row Height -->
+				<!-- Filter -->
+				{#if features.filtering}
+					<div class="gridlite-toolbar-filter">
+						<FilterBar
+							{db}
+							{table}
+							{columns}
+							columnConfigs={config?.columns ?? []}
+							{allowedColumns}
+							conditions={filters}
+							onConditionsChange={handleFiltersChange}
+							logic={filterLogic}
+							onLogicChange={handleLogicChange}
+							isExpanded={filterExpanded}
+							onExpandedChange={(expanded) => (filterExpanded = expanded)}
+						/>
+					</div>
+				{/if}
+
+				<!-- Group -->
+				{#if features.grouping}
+					<div class="gridlite-toolbar-group">
+						<GroupBar
+							{columns}
+							columnConfigs={config?.columns ?? []}
+							{grouping}
+							onGroupingChange={handleGroupingChange}
+							isExpanded={groupExpanded}
+							onExpandedChange={(expanded) => (groupExpanded = expanded)}
+						/>
+					</div>
+				{/if}
+
+				<!-- Sort -->
+				{#if features.sorting}
+					<div class="gridlite-toolbar-sort">
+						<SortBar
+							{columns}
+							columnConfigs={config?.columns ?? []}
+							{sorting}
+							onSortingChange={handleSortingChange}
+							isExpanded={sortExpanded}
+							onExpandedChange={(expanded) => (sortExpanded = expanded)}
+						/>
+					</div>
+				{/if}
+
+				<!-- View Controls (Row Height + Column Spacing) -->
+				<div class="gridlite-toolbar-view gridlite-view-controls">
 					<div class="gridlite-view-control">
 						<button
 							class="gridlite-view-control-btn"
@@ -1096,8 +1123,6 @@
 							</div>
 						{/if}
 					</div>
-
-					<!-- Column Spacing -->
 					<div class="gridlite-view-control">
 						<button
 							class="gridlite-view-control-btn"
@@ -1133,43 +1158,150 @@
 							</div>
 						{/if}
 					</div>
+				</div>
 
-					<!-- Column Visibility -->
-					{#if features.columnVisibility}
-						<div class="gridlite-view-control">
-							<button
-								class="gridlite-view-control-btn"
-								class:active={showColumnPicker}
-								on:click|stopPropagation={() => {
-									showColumnPicker = !showColumnPicker;
-									showRowHeightMenu = false;
-									showColumnSpacingMenu = false;
-								}}
-								type="button"
-								title="Columns"
-							>
-								<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-								</svg>
-								Columns
-							</button>
-							<ColumnPicker
-								{columns}
-								columnConfigs={config?.columns ?? []}
-								{columnVisibility}
-								{columnOrder}
-								isOpen={showColumnPicker}
-								defaultVisibleColumns={config?.defaultVisibleColumns}
-								onVisibilityChange={setColumnVisibility}
-								onToggleAll={toggleAllColumns}
-								onOrderChange={handleColumnOrderChange}
+				<!-- Search -->
+				{#if features.globalSearch}
+					<div class="gridlite-toolbar-search">
+						<div class="gridlite-search">
+							<svg class="gridlite-search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+							</svg>
+							<input
+								class="gridlite-search-input"
+								type="text"
+								placeholder="Search all columns..."
+								value={globalFilter}
+								on:input={handleGlobalSearchInput}
 							/>
+							{#if globalFilter}
+								<button class="gridlite-search-clear" on:click={clearGlobalSearch} type="button" title="Clear search">
+									<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+									</svg>
+								</button>
+							{/if}
 						</div>
-					{/if}
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+		{#if table && toolbarLayout === 'aggrid'}
+			<!-- AG Grid layout: sidebar on right, minimal toolbar on top -->
+			<!-- TODO(#1): aggrid layout is experimental — not production-ready. Needs debugging. -->
+			<div class="gridlite-toolbar gridlite-toolbar-aggrid-top">
+				{#if features.globalSearch}
+					<div class="gridlite-toolbar-search">
+						<div class="gridlite-search">
+							<svg class="gridlite-search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+							</svg>
+							<input
+								class="gridlite-search-input"
+								type="text"
+								placeholder="Search all columns..."
+								value={globalFilter}
+								on:input={handleGlobalSearchInput}
+							/>
+							{#if globalFilter}
+								<button class="gridlite-search-clear" on:click={clearGlobalSearch} type="button" title="Clear search">
+									<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+									</svg>
+								</button>
+							{/if}
+						</div>
+					</div>
+				{/if}
+				{#if features.sorting}
+					<div class="gridlite-toolbar-sort">
+						<SortBar
+							{columns}
+							columnConfigs={config?.columns ?? []}
+							{sorting}
+							onSortingChange={handleSortingChange}
+							isExpanded={sortExpanded}
+							onExpandedChange={(expanded) => (sortExpanded = expanded)}
+						/>
+					</div>
+				{/if}
+				{#if features.grouping}
+					<div class="gridlite-toolbar-group">
+						<GroupBar
+							{columns}
+							columnConfigs={config?.columns ?? []}
+							{grouping}
+							onGroupingChange={handleGroupingChange}
+							isExpanded={groupExpanded}
+							onExpandedChange={(expanded) => (groupExpanded = expanded)}
+						/>
+					</div>
+				{/if}
+				<div class="gridlite-toolbar-view gridlite-view-controls">
+					<div class="gridlite-view-control">
+						<button
+							class="gridlite-view-control-btn"
+							class:active={showRowHeightMenu}
+							on:click|stopPropagation={() => {
+								showRowHeightMenu = !showRowHeightMenu;
+								showColumnSpacingMenu = false;
+							}}
+							type="button"
+							title="Row height"
+						>
+							<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+							</svg>
+						</button>
+						{#if showRowHeightMenu}
+							<div class="gridlite-view-dropdown">
+								<div class="gridlite-view-dropdown-title">Row Height</div>
+								{#each rowHeightOptions as rh}
+									<button
+										class="gridlite-view-dropdown-item"
+										class:selected={rowHeight === rh}
+										on:click={() => { rowHeight = rh; showRowHeightMenu = false; }}
+										type="button"
+									>{rh === 'extra_tall' ? 'Extra Tall' : rh.charAt(0).toUpperCase() + rh.slice(1)}</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
+					<div class="gridlite-view-control">
+						<button
+							class="gridlite-view-control-btn"
+							class:active={showColumnSpacingMenu}
+							on:click|stopPropagation={() => {
+								showColumnSpacingMenu = !showColumnSpacingMenu;
+								showRowHeightMenu = false;
+							}}
+							type="button"
+							title="Column spacing"
+						>
+							<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 4v16M15 4v16M4 9h16M4 15h16" />
+							</svg>
+						</button>
+						{#if showColumnSpacingMenu}
+							<div class="gridlite-view-dropdown">
+								<div class="gridlite-view-dropdown-title">Column Spacing</div>
+								{#each columnSpacingOptions as sp}
+									<button
+										class="gridlite-view-dropdown-item"
+										class:selected={columnSpacing === sp}
+										on:click={() => { columnSpacing = sp; showColumnSpacingMenu = false; }}
+										type="button"
+									>{sp.charAt(0).toUpperCase() + sp.slice(1)}</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
 				</div>
 			</div>
 		{/if}
 
+		<div class="gridlite-body" class:gridlite-aggrid-body={toolbarLayout === 'aggrid'}>
 		<div class="gridlite-table-wrap">
 		<table
 			class={`gridlite-table ${classNames.table ?? ''}`}
@@ -1413,6 +1545,48 @@
 				</div>
 			</div>
 		{/if}
+
+		{#if toolbarLayout === 'aggrid'}
+			<!-- AG Grid sidebar: columns + filters on right -->
+			<!-- TODO(#1): aggrid sidebar is experimental — not production-ready. Needs debugging. -->
+			<aside class="gridlite-aggrid-sidebar">
+				{#if features.columnVisibility}
+					<div class="gridlite-aggrid-sidebar-section">
+						<div class="gridlite-aggrid-sidebar-header">Columns</div>
+						<ColumnPicker
+							{columns}
+							columnConfigs={config?.columns ?? []}
+							{columnVisibility}
+							{columnOrder}
+							isOpen={true}
+							defaultVisibleColumns={config?.defaultVisibleColumns}
+							onVisibilityChange={setColumnVisibility}
+							onToggleAll={toggleAllColumns}
+							onOrderChange={handleColumnOrderChange}
+						/>
+					</div>
+				{/if}
+				{#if features.filtering}
+					<div class="gridlite-aggrid-sidebar-section">
+						<div class="gridlite-aggrid-sidebar-header">Filters</div>
+						<FilterBar
+							{db}
+							table={table ?? ''}
+							{columns}
+							columnConfigs={config?.columns ?? []}
+							{allowedColumns}
+							conditions={filters}
+							onConditionsChange={handleFiltersChange}
+							logic={filterLogic}
+							onLogicChange={handleLogicChange}
+							isExpanded={true}
+							onExpandedChange={() => {}}
+						/>
+					</div>
+				{/if}
+			</aside>
+		{/if}
+		</div>
 
 		{#if contextMenu}
 			<CellContextMenu
