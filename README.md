@@ -6,7 +6,85 @@ Where traditional table libraries operate on in-memory JavaScript arrays, svelte
 
 ## Status
 
-**Early development.** Not yet published to npm.
+**Beta.** Published to npm as `@shotleybuilder/svelte-gridlite-kit`.
+
+## Installation
+
+```bash
+npm install @shotleybuilder/svelte-gridlite-kit @electric-sql/pglite
+```
+
+## Quick Start
+
+```svelte
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { PGlite } from '@electric-sql/pglite';
+  import { live } from '@electric-sql/pglite/live';
+  import { GridLite } from '@shotleybuilder/svelte-gridlite-kit';
+  import '@shotleybuilder/svelte-gridlite-kit/styles';
+
+  let db = null;
+  let ready = false;
+
+  onMount(async () => {
+    db = new PGlite({ extensions: { live } });
+
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS contacts (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT,
+        company TEXT,
+        created_at DATE DEFAULT CURRENT_DATE
+      )
+    `);
+
+    // Insert some data...
+    ready = true;
+  });
+</script>
+
+{#if ready && db}
+  <GridLite
+    {db}
+    table="contacts"
+    config={{
+      id: 'my-contacts-grid',
+      columns: [
+        { name: 'name', label: 'Name' },
+        { name: 'email', label: 'Email' },
+        { name: 'company', label: 'Company' },
+        { name: 'created_at', label: 'Created' }
+      ],
+      pagination: { pageSize: 25 }
+    }}
+    features={{
+      filtering: true,
+      sorting: true,
+      grouping: true,
+      pagination: true,
+      globalSearch: true,
+      rowDetail: true
+    }}
+  />
+{/if}
+```
+
+> **SvelteKit note:** PGLite requires browser APIs (WebAssembly, IndexedDB). Disable SSR for pages that use it:
+>
+> ```typescript
+> // +layout.ts or +page.ts
+> export const ssr = false;
+> ```
+>
+> Also add to your `vite.config.ts`:
+>
+> ```typescript
+> optimizeDeps: {
+>   exclude: ['@electric-sql/pglite']
+> }
+> ```
 
 ## Origin
 

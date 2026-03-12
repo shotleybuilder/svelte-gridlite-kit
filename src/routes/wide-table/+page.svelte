@@ -8,8 +8,10 @@
 
 	let db: PGliteWithLive | null = null;
 	let ready = false;
+	let initError: string | null = null;
 
 	onMount(async () => {
+		try {
 		db = new PGlite({ extensions: { live } }) as PGliteWithLive;
 
 		// 20-column table to test horizontal scroll and column management
@@ -79,6 +81,10 @@
 		`);
 
 		ready = true;
+		} catch (err) {
+			initError = err instanceof Error ? err.message : String(err);
+			console.error('PGLite initialization failed:', err);
+		}
 	});
 </script>
 
@@ -95,6 +101,8 @@
 				pagination: { pageSize: 15 }
 			}}
 		/>
+	{:else if initError}
+		<p class="error">Error: {initError}</p>
 	{:else}
 		<p>Initializing PGLite...</p>
 	{/if}
@@ -115,5 +123,13 @@
 	p {
 		margin: 0 0 16px 0;
 		color: #666;
+	}
+
+	.error {
+		color: #dc3545;
+		background: #f8d7da;
+		border: 1px solid #f5c6cb;
+		border-radius: 4px;
+		padding: 12px;
 	}
 </style>
