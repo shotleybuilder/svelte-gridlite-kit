@@ -83,7 +83,7 @@ describe("createLiveQueryStore", () => {
     const state = await statePromise;
 
     expect(state.rows).toHaveLength(3);
-    expect(state.rows.map((r) => r.name)).toContain("Diana");
+    expect(state.rows.map((r: { name: string }) => r.name)).toContain("Diana");
 
     await store.destroy();
 

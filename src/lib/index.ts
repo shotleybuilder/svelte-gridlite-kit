@@ -1,5 +1,8 @@
 // Public API for @shotleybuilder/svelte-gridlite-kit
 
+// Main component
+export { default as GridLite } from "./GridLite.svelte";
+
 // TypeScript types
 export type {
   GridLiteProps,
