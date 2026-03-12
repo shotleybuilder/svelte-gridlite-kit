@@ -30,6 +30,7 @@
 		type LiveQueryState
 	} from './query/live.js';
 	import { runMigrations } from './state/migrations.js';
+	import FilterBar from './components/FilterBar.svelte';
 
 	// ─── Props ────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,9 @@
 	let page = 0;
 	let pageSize = config?.pagination?.pageSize ?? 25;
 	let totalRows = 0;
+
+	// Filter UI state
+	let filterExpanded = false;
 
 	// Live query store
 	let store: LiveQueryStore | null = null;
@@ -262,6 +266,19 @@
 		}
 	}
 
+	// ─── FilterBar handlers ───────────────────────────────────────────────────
+
+	function handleFiltersChange(newFilters: FilterCondition[]) {
+		setFilters(newFilters, filterLogic);
+	}
+
+	function handleLogicChange(newLogic: FilterLogic) {
+		filterLogic = newLogic;
+		page = 0;
+		rebuildQuery();
+		notifyStateChange();
+	}
+
 	// ─── Lifecycle ────────────────────────────────────────────────────────────
 
 	onMount(() => {
@@ -283,6 +300,24 @@
 	{:else if storeState.error}
 		<div class="gridlite-empty">Error: {storeState.error.message}</div>
 	{:else}
+		{#if features.filtering && table}
+			<div class="gridlite-toolbar">
+				<FilterBar
+					{db}
+					{table}
+					{columns}
+					columnConfigs={config?.columns ?? []}
+					{allowedColumns}
+					conditions={filters}
+					onConditionsChange={handleFiltersChange}
+					logic={filterLogic}
+					onLogicChange={handleLogicChange}
+					isExpanded={filterExpanded}
+					onExpandedChange={(expanded) => (filterExpanded = expanded)}
+				/>
+			</div>
+		{/if}
+
 		<table class={`gridlite-table ${classNames.table ?? ''}`}>
 			<thead class={`gridlite-thead ${classNames.thead ?? ''}`}>
 				<tr class={classNames.tr ?? ''}>

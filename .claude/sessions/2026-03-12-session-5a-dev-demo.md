@@ -4,11 +4,15 @@
 **Plan**: `.claude/plans/build-plan.md` — Session 5a
 
 ## Todo
-- [ ] Expand `src/routes/+page.svelte` — full demo with feature flag toggles, 50-100 rows
-- [ ] Create `src/routes/+layout.svelte` — minimal layout with nav
-- [ ] Optional: `src/routes/wide-table/+page.svelte` — wide table demo (many columns)
+- [x] Expand `src/routes/+page.svelte` — 60 rows, 10 cols, row height/spacing/pageSize/pagination controls
+- [x] Create `src/routes/+layout.svelte` — nav bar with links to both demos
+- [x] Create `src/routes/wide-table/+page.svelte` — 20 columns, 50 rows
+- [x] Create `.scripts/development/start.sh` + `stop.sh` — dev server lifecycle
 
 ## Notes
 - PGLite initialized client-side only (onMount)
-- Sample data should cover all column types: text, number, date, boolean, select-like
-- Reference: svelte-table-kit `src/routes/+page.svelte` (258 LOC), `wide-table/+page.svelte` (336 LOC)
+- All column types covered: text, number, date, boolean, select-like
+- svelte-check clean, 125 tests passing
+- Commit: `0047ecc`
+
+**Ended**: 2026-03-12

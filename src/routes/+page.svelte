@@ -16,6 +16,7 @@
 	let columnSpacing: ColumnSpacing = 'normal';
 	let pageSize = 10;
 	let paginationEnabled = true;
+	let filteringEnabled = true;
 
 	const rowHeights: RowHeight[] = ['short', 'medium', 'tall', 'extra_tall'];
 	const spacings: ColumnSpacing[] = ['narrow', 'normal', 'wide'];
@@ -119,6 +120,11 @@
 			<input type="checkbox" bind:checked={paginationEnabled} />
 			Pagination
 		</label>
+
+		<label>
+			<input type="checkbox" bind:checked={filteringEnabled} />
+			Filtering
+		</label>
 	</div>
 
 	{#if ready && db}
@@ -146,7 +152,8 @@
 				]
 			}}
 			features={{
-				pagination: paginationEnabled
+				pagination: paginationEnabled,
+				filtering: filteringEnabled
 			}}
 		/>
 	{:else}

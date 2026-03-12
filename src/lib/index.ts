@@ -3,6 +3,10 @@
 // Main component
 export { default as GridLite } from "./GridLite.svelte";
 
+// UI components
+export { default as FilterBar } from "./components/FilterBar.svelte";
+export { default as FilterConditionRow } from "./components/FilterCondition.svelte";
+
 // TypeScript types
 export type {
   GridLiteProps,
