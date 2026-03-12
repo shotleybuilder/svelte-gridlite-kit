@@ -409,6 +409,42 @@
   background: #e9ecef;
 }
 
+/* ─── Column Resize Handle ───────────────────────────────────────────────── */
+
+.gridlite-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -6px;
+  height: 100%;
+  width: 12px;
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+  background: transparent;
+  z-index: 10;
+  transition: background 0.15s;
+}
+
+.gridlite-resize-handle:hover {
+  background: rgba(76, 110, 245, 0.1);
+}
+
+.gridlite-resize-handle:hover::after,
+.gridlite-resize-handle.resizing::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 100%;
+  width: 2px;
+  background: #4c6ef5;
+}
+
+.gridlite-resize-handle.resizing {
+  background: rgba(76, 110, 245, 0.08);
+}
+
 /* ─── Row Detail (default layout) ────────────────────────────────────────── */
 
 .gridlite-row-detail {

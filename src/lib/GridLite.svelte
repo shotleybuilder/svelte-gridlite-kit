@@ -116,6 +116,16 @@
 	// Column visibility state
 	let columnVisibility: Record<string, boolean> = {};
 
+	// Column sizing state
+	let columnSizing: Record<string, number> = config?.defaultColumnSizing ?? {};
+	let resizingColumn: string | null = null;
+	let resizeStartX = 0;
+	let resizeStartWidth = 0;
+
+	const COL_MIN_WIDTH = 62;
+	const COL_MAX_WIDTH = 1000;
+	const COL_DEFAULT_WIDTH = 180;
+
 	// Row detail state
 	let rowDetailOpen = false;
 	let rowDetailIndex = -1;
@@ -306,7 +316,7 @@
 			onStateChange({
 				columnVisibility: Object.fromEntries(visibleColumns.map((c) => [c.name, true])),
 				columnOrder: orderedColumns.map((c) => c.name),
-				columnSizing: {},
+				columnSizing,
 				filters,
 				filterLogic,
 				sorting,
@@ -485,6 +495,43 @@
 		}
 	}
 
+	// ─── Column Resize handlers ───────────────────────────────────────────────
+
+	function getColumnWidth(columnName: string): number {
+		if (columnName in columnSizing) return columnSizing[columnName];
+		const colConfig = config?.columns?.find((c) => c.name === columnName);
+		return colConfig?.width ?? COL_DEFAULT_WIDTH;
+	}
+
+	function handleResizeStart(event: MouseEvent | TouchEvent, columnName: string) {
+		event.preventDefault();
+		event.stopPropagation();
+		resizingColumn = columnName;
+		resizeStartX = 'touches' in event ? event.touches[0].clientX : event.clientX;
+		resizeStartWidth = getColumnWidth(columnName);
+		window.addEventListener('mousemove', handleResizeMove);
+		window.addEventListener('mouseup', handleResizeEnd);
+		window.addEventListener('touchmove', handleResizeMove);
+		window.addEventListener('touchend', handleResizeEnd);
+	}
+
+	function handleResizeMove(event: MouseEvent | TouchEvent) {
+		if (!resizingColumn) return;
+		const clientX = 'touches' in event ? event.touches[0].clientX : event.clientX;
+		const delta = clientX - resizeStartX;
+		const newWidth = Math.max(COL_MIN_WIDTH, Math.min(COL_MAX_WIDTH, resizeStartWidth + delta));
+		columnSizing = { ...columnSizing, [resizingColumn]: newWidth };
+	}
+
+	function handleResizeEnd() {
+		resizingColumn = null;
+		window.removeEventListener('mousemove', handleResizeMove);
+		window.removeEventListener('mouseup', handleResizeEnd);
+		window.removeEventListener('touchmove', handleResizeMove);
+		window.removeEventListener('touchend', handleResizeEnd);
+		notifyStateChange();
+	}
+
 	// ─── RowDetail handlers ───────────────────────────────────────────────────
 
 	function openRowDetail(index: number) {
@@ -519,6 +566,9 @@
 
 	onDestroy(() => {
 		clearTimeout(searchDebounceTimer);
+		if (resizingColumn) {
+			handleResizeEnd();
+		}
 		if (store) {
 			store.destroy();
 		}
@@ -716,11 +766,17 @@
 			</div>
 		{/if}
 
-		<table class={`gridlite-table ${classNames.table ?? ''}`}>
+		<table
+			class={`gridlite-table ${classNames.table ?? ''}`}
+			style={features.columnResizing ? 'table-layout: fixed;' : ''}
+		>
 			<thead class={`gridlite-thead ${classNames.thead ?? ''}`}>
 				<tr class={classNames.tr ?? ''}>
 					{#each orderedColumns as col}
-						<th class={`gridlite-th gridlite-th-interactive ${classNames.th ?? ''}`}>
+						<th
+							class={`gridlite-th gridlite-th-interactive ${classNames.th ?? ''}`}
+							style={features.columnResizing ? `width: ${getColumnWidth(col.name)}px;` : ''}
+						>
 							<div class="gridlite-th-content">
 								<span class="gridlite-th-label">
 									{#if config?.columns}
@@ -757,6 +813,15 @@
 									/>
 								{/if}
 							</div>
+							{#if features.columnResizing}
+								<!-- svelte-ignore a11y-no-static-element-interactions -->
+								<div
+									class="gridlite-resize-handle"
+									class:resizing={resizingColumn === col.name}
+									on:mousedown={(e) => handleResizeStart(e, col.name)}
+									on:touchstart={(e) => handleResizeStart(e, col.name)}
+								/>
+							{/if}
 						</th>
 					{/each}
 				</tr>

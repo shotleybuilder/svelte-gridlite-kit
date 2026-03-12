@@ -20,6 +20,7 @@
 	let rowDetailEnabled = true;
 	let globalSearchEnabled = true;
 	let columnVisibilityEnabled = true;
+	let columnResizingEnabled = true;
 	const departments = ['Engineering', 'Marketing', 'Sales', 'Finance', 'HR', 'Operations', 'Legal', 'Support'];
 	const statuses = ['Active', 'On Leave', 'Probation', 'Terminated'];
 
@@ -127,6 +128,11 @@
 			<input type="checkbox" bind:checked={columnVisibilityEnabled} />
 			Column Visibility
 		</label>
+
+		<label>
+			<input type="checkbox" bind:checked={columnResizingEnabled} />
+			Column Resizing
+		</label>
 	</div>
 
 	{#if ready && db}
@@ -158,7 +164,8 @@
 				grouping: groupingEnabled,
 				rowDetail: rowDetailEnabled,
 				globalSearch: globalSearchEnabled,
-				columnVisibility: columnVisibilityEnabled
+				columnVisibility: columnVisibilityEnabled,
+				columnResizing: columnResizingEnabled
 			}}
 		/>
 	{:else if initError}
