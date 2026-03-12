@@ -15,3 +15,5 @@
 - Value suggestions via SELECT DISTINCT (async, debounced)
 - AND/OR logic toggle
 - Reference: svelte-table-kit `FilterBar.svelte` (421 LOC), `FilterCondition.svelte` (808 LOC)
+
+**Ended**: 2026-03-12
