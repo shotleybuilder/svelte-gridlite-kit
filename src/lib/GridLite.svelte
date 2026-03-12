@@ -41,6 +41,7 @@
 	import GroupBar from './components/GroupBar.svelte';
 	import CellContextMenu from './components/CellContextMenu.svelte';
 	import ColumnMenu from './components/ColumnMenu.svelte';
+	import ColumnPicker from './components/ColumnPicker.svelte';
 	import RowDetailModal from './components/RowDetailModal.svelte';
 
 	// ─── Props ────────────────────────────────────────────────────────────────
@@ -769,8 +770,13 @@
 	// ─── View Controls handlers ───────────────────────────────────────────────
 
 	function toggleColumnVisibility(columnName: string) {
-		const current = columnVisibility[columnName] ?? true;
+		const current = isColumnVisible(columnName);
 		columnVisibility = { ...columnVisibility, [columnName]: !current };
+		notifyStateChange();
+	}
+
+	function setColumnVisibility(columnName: string, visible: boolean) {
+		columnVisibility = { ...columnVisibility, [columnName]: visible };
 		notifyStateChange();
 	}
 
@@ -1142,33 +1148,23 @@
 								</svg>
 								Columns
 							</button>
-							{#if showColumnPicker}
-								<div class="gridlite-view-dropdown gridlite-column-picker">
-									<div class="gridlite-view-dropdown-title">Columns</div>
-									<div class="gridlite-column-picker-actions">
-										<button type="button" on:click={() => toggleAllColumns(true)}>Show All</button>
-										<button type="button" on:click={() => toggleAllColumns(false)}>Hide All</button>
-									</div>
-									<div class="gridlite-column-picker-list">
-										{#each columns as col}
-											<label class="gridlite-column-picker-item">
-												<input
-													type="checkbox"
-													checked={isColumnVisible(col.name)}
-													on:change={() => toggleColumnVisibility(col.name)}
-												/>
-												{getColumnLabel(col)}
-											</label>
-										{/each}
-									</div>
-								</div>
-							{/if}
+							<ColumnPicker
+								{columns}
+								columnConfigs={config?.columns ?? []}
+								{columnVisibility}
+								{columnOrder}
+								isOpen={showColumnPicker}
+								defaultVisibleColumns={config?.defaultVisibleColumns}
+								onVisibilityChange={setColumnVisibility}
+								onToggleAll={toggleAllColumns}
+							/>
 						</div>
 					{/if}
 				</div>
 			</div>
 		{/if}
 
+		<div class="gridlite-table-wrap">
 		<table
 			class={`gridlite-table ${classNames.table ?? ''}`}
 			style={features.columnResizing ? 'table-layout: fixed;' : ''}
@@ -1379,6 +1375,7 @@
 				{/if}
 			</tbody>
 		</table>
+		</div>
 
 		{#if features.pagination !== false && totalRows > 0}
 			<div class={`gridlite-pagination ${classNames.pagination ?? ''}`}>

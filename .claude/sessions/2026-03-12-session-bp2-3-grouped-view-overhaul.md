@@ -27,3 +27,8 @@
 - Lazy child loading — only expanded groups fetch rows
 - Pagination applies to groups, not child rows
 - Removed `grouping` param from flat `buildQuery()` — grouped mode uses separate query path
+- Hierarchical nesting: top-level groups first column, sub-groups on expand, detail rows at deepest level
+- Fixed empty column validation: GroupBar emits intermediate states with `column: ''`
+- validGrouping filters to only complete entries; query builder never sees empty strings
+
+**Ended**: 2026-03-12

@@ -11,6 +11,7 @@ export { default as SortCondition } from "./components/SortCondition.svelte";
 export { default as GroupBar } from "./components/GroupBar.svelte";
 export { default as CellContextMenu } from "./components/CellContextMenu.svelte";
 export { default as ColumnMenu } from "./components/ColumnMenu.svelte";
+export { default as ColumnPicker } from "./components/ColumnPicker.svelte";
 export { default as RowDetailModal } from "./components/RowDetailModal.svelte";
 
 // TypeScript types
