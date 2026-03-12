@@ -86,6 +86,44 @@ npm install @shotleybuilder/svelte-gridlite-kit @electric-sql/pglite
 > }
 > ```
 
+## Guides
+
+Structured reference docs for every feature, designed to be both human-readable and AI-agent-friendly:
+
+- **[Quick Start](.claude/skills/quick-start/SKILL.md)** — Install, PGLite init, minimal component, SvelteKit config
+- **[Props API](.claude/skills/props-api/SKILL.md)** — Complete prop reference with types, defaults, examples
+- **[Filtering](.claude/skills/filtering/SKILL.md)** — FilterBar, operators by type, programmatic filter control
+- **[Sorting & Grouping](.claude/skills/sorting-grouping/SKILL.md)** — SortBar, GroupBar, multi-level grouping, aggregations
+- **[Column Management](.claude/skills/column-management/SKILL.md)** — Visibility, resizing, reordering, ColumnPicker
+- **[Pagination & Search](.claude/skills/pagination-search/SKILL.md)** — Page size, global search, SQL implementation
+- **[Styling](.claude/skills/styling/SKILL.md)** — Row height, column spacing, toolbar layouts, custom classes
+- **[State & Callbacks](.claude/skills/state-callbacks/SKILL.md)** — onStateChange, GridState, view persistence
+- **[Recipes](.claude/skills/recipes/SKILL.md)** — Custom formatters, raw query mode, common integration patterns
+
+## Examples
+
+Focused, single-feature demo pages in `src/routes/examples/`:
+
+| Route | What it shows |
+|---|---|
+| `/examples/minimal` | Zero-config — auto-detected schema, default everything |
+| `/examples/filtering` | FilterBar + programmatic filter buttons |
+| `/examples/grouping` | Hierarchical grouping with aggregations |
+| `/examples/custom-cells` | Currency, date, boolean, rating star formatters |
+| `/examples/raw-query` | JOIN, aggregate, CTE queries via the `query` prop |
+
+Run `npm run dev` and visit `http://localhost:5173/examples/minimal` to start.
+
+## For AI Agents
+
+This library includes structured skill files in `.claude/skills/` optimised for Claude Code and other AI coding assistants. Each skill file covers one topic with:
+
+- Quick copy-paste examples
+- Complete prop/type references
+- Common patterns and troubleshooting
+
+**To use in a consuming project:** Copy the relevant `.claude/skills/<topic>/SKILL.md` files into your project, or point your AI agent at this repository's `.claude/skills/` directory. See `CLAUDE.md` for additional architectural context and integration guidance.
+
 ## Origin
 
 Forked from [`@shotleybuilder/svelte-table-kit`](https://github.com/shotleybuilder/svelte-table-kit) (v0.15.1), a TanStack Table-based data table library. The architectural shift to PGLite as a local-first data layer meant the in-memory array paradigm and TanStack Table's client-side row models were no longer the right foundation. This is a purpose-built rewrite for the SQL-native stack.

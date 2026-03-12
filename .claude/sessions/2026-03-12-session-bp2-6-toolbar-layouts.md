@@ -44,19 +44,22 @@
 - TanStack/Shadcn: search-left, actions-right
 
 ## Todo
-- [ ] Add ToolbarLayout type to types.ts
-- [ ] Add toolbarLayout prop to GridLite.svelte
-- [ ] Implement `airtable` layout (right-aligned, reordered controls)
-- [ ] Implement `excel` layout (two-row stacked)
-- [ ] Implement `aggrid` layout (sidebar panel)
-- [ ] Implement `shadcn` layout (search-left, actions-right)
-- [ ] Refactor current layout as default/`airtable`
-- [ ] CSS styles for all layouts
-- [ ] Add toolbar layout selector to demo page
-- [ ] Run type check and tests
+- [x] Add ToolbarLayout type to types.ts
+- [x] Add toolbarLayout prop to GridLite.svelte
+- [x] Implement `airtable` layout (right-aligned, reordered controls)
+- [x] Implement `excel` layout (two-row stacked)
+- [x] Implement `aggrid` layout (sidebar panel) — experimental, see #1
+- [x] Implement `shadcn` layout (search-left, actions-right)
+- [x] Refactor toolbar with semantic wrapper divs for CSS order control
+- [x] CSS styles for all layouts
+- [x] Normalize control heights across all button types
+- [x] Add toolbar layout selector to demo page
+- [x] Run type check and tests
 
 ## Notes
-- Current layout is closest to `airtable` pattern but needs reordering
-- `notion` can be deferred — requires significant component restructuring (menus)
-- `airtable`, `excel`, `shadcn` are CSS-driven with same HTML structure
-- `aggrid` requires template restructure (sidebar wrapper)
+- `notion` deferred — too tool-specific, not a generalisable pattern
+- `airtable`, `excel`, `shadcn` are CSS-driven (same HTML, CSS `order` reordering)
+- `aggrid` needs separate template branch — filed as #1 for debugging
+- Normalized button heights: view-control-btn now matches toggle-btn padding
+
+**Ended**: 2026-03-12

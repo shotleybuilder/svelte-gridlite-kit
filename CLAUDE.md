@@ -216,6 +216,52 @@ features={{
 3. Wire into GridLite.svelte state management
 4. Add migration for existing databases
 
+## Claude Code Skills
+
+Structured reference files for integrating GridLite into a project. Located in `.claude/skills/`:
+
+| Skill | Path | What it covers |
+|---|---|---|
+| Quick Start | `.claude/skills/quick-start/` | Install, PGLite init, minimal component, SvelteKit config |
+| Props API | `.claude/skills/props-api/` | Complete prop reference with types, defaults, examples |
+| Filtering | `.claude/skills/filtering/` | FilterBar, operators by type, programmatic filters |
+| Sorting & Grouping | `.claude/skills/sorting-grouping/` | SortBar, GroupBar, multi-level grouping, aggregations |
+| Column Management | `.claude/skills/column-management/` | Visibility, resizing, reordering, ColumnPicker |
+| Pagination & Search | `.claude/skills/pagination-search/` | Page size, global search, SQL implementation |
+| Styling | `.claude/skills/styling/` | Row height, column spacing, toolbar layouts, custom classes |
+| State & Callbacks | `.claude/skills/state-callbacks/` | onStateChange, GridState, view persistence |
+| Recipes | `.claude/skills/recipes/` | Custom formatters, raw query mode, common patterns |
+
+**Usage from a consuming project:** Point Claude Code at this repository's `.claude/skills/` directory or copy the relevant SKILL.md files into your project's `.claude/skills/` folder.
+
+## Reference Demos
+
+Example pages in `src/routes/examples/` demonstrate focused, single-feature usage:
+
+| Route | What it demonstrates |
+|---|---|
+| `/examples/minimal` | Zero-config setup with auto-detected schema |
+| `/examples/filtering` | FilterBar + programmatic filter buttons |
+| `/examples/grouping` | Hierarchical grouping with aggregations |
+| `/examples/custom-cells` | Currency, date, boolean, rating formatters |
+| `/examples/raw-query` | JOIN, aggregate, CTE queries via `query` prop |
+
+The main demo at `/` (root) shows all features together with interactive toggles.
+
+## Common Integration Patterns
+
+The top 5 things a Claude Code agent needs when integrating this library:
+
+1. **PGLite must have the `live` extension.** Always create with `new PGlite({ extensions: { live } })` and cast to `PGliteWithLive`.
+
+2. **Disable SSR.** Add `export const ssr = false;` to `+layout.ts` or `+page.ts`. Add `optimizeDeps: { exclude: ['@electric-sql/pglite'] }` to `vite.config.ts`.
+
+3. **Table name OR raw query.** Use `table="employees"` for single-table grids, or `query="SELECT e.*, d.name AS dept_name FROM employees e JOIN departments d ON ..."` for complex queries. Never use both.
+
+4. **Column config is optional.** If `config.columns` is omitted, GridLite introspects the schema and auto-generates columns. Provide `config.columns` when you need custom labels, formatting, or to control which columns appear.
+
+5. **All features are opt-in via `features` prop.** Each feature (filtering, sorting, grouping, pagination, etc.) defaults to `false`. Enable only what you need.
+
 ## Relationship to svelte-table-kit
 
 This library is a sibling to `@shotleybuilder/svelte-table-kit`, not a replacement. svelte-table-kit remains the right choice for:

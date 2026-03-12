@@ -1,3 +1,16 @@
+<!--
+  Main Demo Page — svelte-gridlite-kit
+  ======================================
+  This page demonstrates every GridLite feature in a single interactive demo.
+  Use the checkbox controls above the grid to toggle features on/off.
+
+  For focused, single-feature examples, see:
+    /examples/minimal       — Zero-config setup
+    /examples/filtering     — FilterBar + programmatic filters
+    /examples/grouping      — Hierarchical grouping with aggregations
+    /examples/custom-cells  — Currency, date, boolean, rating formatters
+    /examples/raw-query     — JOIN, aggregate, CTE queries via `query` prop
+-->
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { PGlite } from '@electric-sql/pglite';
@@ -7,12 +20,19 @@
 	import GridLite from '$lib/GridLite.svelte';
 	import '$lib/styles/gridlite.css';
 
+	// --- PGLite Instance ---
+	// GridLite requires a PGlite instance with the `live` extension.
+	// The `live` extension enables reactive queries that push updates to the UI.
 	let db: PGliteWithLive | null = null;
 	let ready = false;
 	let initError: string | null = null;
+
+	// --- Component Reference ---
+	// `bind:this` gives access to GridLite methods like refresh(), setFilters(), etc.
 	let gridRef: GridLite;
 
-	// Controls
+	// --- Feature Toggles ---
+	// Each maps to a key in the `features` prop. Toggle to enable/disable at runtime.
 	let pageSize = 10;
 	let paginationEnabled = true;
 	let filteringEnabled = true;
@@ -23,71 +43,83 @@
 	let columnVisibilityEnabled = true;
 	let columnResizingEnabled = true;
 	let columnReorderingEnabled = true;
+
+	// --- Toolbar Layout ---
+	// Controls how toolbar controls are arranged. See .claude/skills/styling/SKILL.md
+	// Options: 'airtable' | 'excel' | 'shadcn' | 'aggrid'
 	let selectedLayout: ToolbarLayout = 'airtable';
 	const layoutOptions: ToolbarLayout[] = ['airtable', 'excel', 'shadcn', 'aggrid'];
+
+	// --- Seed Data Constants ---
 	const departments = ['Engineering', 'Marketing', 'Sales', 'Finance', 'HR', 'Operations', 'Legal', 'Support'];
 	const statuses = ['Active', 'On Leave', 'Probation', 'Terminated'];
 
 	onMount(async () => {
 		try {
-		db = new PGlite({ extensions: { live } }) as PGliteWithLive;
+			// Create an in-memory PGLite instance with the live extension.
+			// For persistent data, pass { dataDir: 'idb://my-db' } to use IndexedDB.
+			db = new PGlite({ extensions: { live } }) as PGliteWithLive;
 
-		await db.exec(`
-			CREATE TABLE employees (
-				id SERIAL PRIMARY KEY,
-				name TEXT NOT NULL,
-				email TEXT NOT NULL,
-				department TEXT NOT NULL,
-				title TEXT NOT NULL,
-				salary NUMERIC(10, 2) NOT NULL,
-				hire_date DATE NOT NULL,
-				active BOOLEAN DEFAULT true,
-				rating NUMERIC(2, 1),
-				status TEXT DEFAULT 'Active'
-			)
-		`);
+			// Create the demo table with a mix of column types:
+			// TEXT, NUMERIC, DATE, BOOLEAN — each maps to different filter operators.
+			await db.exec(`
+				CREATE TABLE employees (
+					id SERIAL PRIMARY KEY,
+					name TEXT NOT NULL,
+					email TEXT NOT NULL,
+					department TEXT NOT NULL,
+					title TEXT NOT NULL,
+					salary NUMERIC(10, 2) NOT NULL,
+					hire_date DATE NOT NULL,
+					active BOOLEAN DEFAULT true,
+					rating NUMERIC(2, 1),
+					status TEXT DEFAULT 'Active'
+				)
+			`);
 
-		// Seed 60 rows of realistic data
-		const firstNames = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry', 'Iris', 'Jack',
-			'Karen', 'Leo', 'Mia', 'Nathan', 'Olivia', 'Paul', 'Quinn', 'Rachel', 'Sam', 'Tina',
-			'Uma', 'Victor', 'Wendy', 'Xavier', 'Yuki', 'Zara', 'Aaron', 'Bella', 'Carlos', 'Daphne'];
-		const lastNames = ['Johnson', 'Smith', 'Brown', 'Prince', 'Wilson', 'Miller', 'Lee', 'Ford', 'Chang', 'Ryan',
-			'Davis', 'Garcia', 'Martinez', 'Robinson', 'Clark', 'Lewis', 'Walker', 'Hall', 'Allen', 'Young'];
-		const titles = ['Engineer', 'Senior Engineer', 'Lead Engineer', 'Manager', 'Analyst', 'Coordinator',
-			'Director', 'Specialist', 'Associate', 'VP'];
+			// Seed 60 rows of realistic data.
+			const firstNames = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry', 'Iris', 'Jack',
+				'Karen', 'Leo', 'Mia', 'Nathan', 'Olivia', 'Paul', 'Quinn', 'Rachel', 'Sam', 'Tina',
+				'Uma', 'Victor', 'Wendy', 'Xavier', 'Yuki', 'Zara', 'Aaron', 'Bella', 'Carlos', 'Daphne'];
+			const lastNames = ['Johnson', 'Smith', 'Brown', 'Prince', 'Wilson', 'Miller', 'Lee', 'Ford', 'Chang', 'Ryan',
+				'Davis', 'Garcia', 'Martinez', 'Robinson', 'Clark', 'Lewis', 'Walker', 'Hall', 'Allen', 'Young'];
+			const titles = ['Engineer', 'Senior Engineer', 'Lead Engineer', 'Manager', 'Analyst', 'Coordinator',
+				'Director', 'Specialist', 'Associate', 'VP'];
 
-		const values: string[] = [];
-		for (let i = 0; i < 60; i++) {
-			const first = firstNames[i % firstNames.length];
-			const last = lastNames[i % lastNames.length];
-			const dept = departments[i % departments.length];
-			const title = titles[i % titles.length];
-			const salary = 55000 + Math.floor(Math.random() * 80000);
-			const year = 2018 + Math.floor(Math.random() * 6);
-			const month = String(1 + Math.floor(Math.random() * 12)).padStart(2, '0');
-			const day = String(1 + Math.floor(Math.random() * 28)).padStart(2, '0');
-			const active = Math.random() > 0.15;
-			const rating = (3 + Math.random() * 2).toFixed(1);
-			const status = statuses[Math.floor(Math.random() * statuses.length)];
-			const email = `${first.toLowerCase()}.${last.toLowerCase()}@example.com`;
+			const values: string[] = [];
+			for (let i = 0; i < 60; i++) {
+				const first = firstNames[i % firstNames.length];
+				const last = lastNames[i % lastNames.length];
+				const dept = departments[i % departments.length];
+				const title = titles[i % titles.length];
+				const salary = 55000 + Math.floor(Math.random() * 80000);
+				const year = 2018 + Math.floor(Math.random() * 6);
+				const month = String(1 + Math.floor(Math.random() * 12)).padStart(2, '0');
+				const day = String(1 + Math.floor(Math.random() * 28)).padStart(2, '0');
+				const active = Math.random() > 0.15;
+				const rating = (3 + Math.random() * 2).toFixed(1);
+				const status = statuses[Math.floor(Math.random() * statuses.length)];
+				const email = `${first.toLowerCase()}.${last.toLowerCase()}@example.com`;
 
-			values.push(
-				`('${first} ${last}', '${email}', '${dept}', '${title}', ${salary}, '${year}-${month}-${day}', ${active}, ${rating}, '${status}')`
-			);
-		}
+				values.push(
+					`('${first} ${last}', '${email}', '${dept}', '${title}', ${salary}, '${year}-${month}-${day}', ${active}, ${rating}, '${status}')`
+				);
+			}
 
-		await db.exec(`
-			INSERT INTO employees (name, email, department, title, salary, hire_date, active, rating, status)
-			VALUES ${values.join(',\n')}
-		`);
+			await db.exec(`
+				INSERT INTO employees (name, email, department, title, salary, hire_date, active, rating, status)
+				VALUES ${values.join(',\n')}
+			`);
 
-		ready = true;
+			ready = true;
 		} catch (err) {
 			initError = err instanceof Error ? err.message : String(err);
 			console.error('PGLite initialization failed:', err);
 		}
 	});
 
+	// --- Event Handlers ---
+	// onRowClick receives the full row object when a user clicks a table row.
 	function handleRowClick(row: Record<string, unknown>) {
 		console.log('Row clicked:', row);
 	}
@@ -97,6 +129,7 @@
 	<h1>Employees Demo</h1>
 	<p>60 rows, 10 columns. Right-click cells for context menu. Click column headers for sort/filter/group. Click rows for detail modal.</p>
 
+	<!-- Feature Toggle Controls -->
 	<div class="controls">
 		<label>
 			<input type="checkbox" bind:checked={paginationEnabled} />
@@ -143,6 +176,7 @@
 			Column Reordering
 		</label>
 
+		<!-- Toolbar Layout Selector -->
 		<label>
 			Layout:
 			<select bind:value={selectedLayout}>
@@ -154,6 +188,24 @@
 	</div>
 
 	{#if ready && db}
+		<!--
+			GridLite Component
+			==================
+			Required props:
+			  - db: PGlite instance with live extension
+			  - table: Table name to query (or use `query` prop for raw SQL)
+
+			Optional props:
+			  - config: Column definitions, pagination settings, view ID
+			  - features: Toggle individual features on/off
+			  - toolbarLayout: Toolbar arrangement preset
+			  - onRowClick: Callback when a row is clicked
+			  - rowHeight: 'short' | 'medium' | 'tall' | 'extra_tall'
+			  - columnSpacing: 'narrow' | 'normal' | 'wide'
+			  - classNames: Custom CSS class overrides
+
+			See .claude/skills/props-api/SKILL.md for the complete prop reference.
+		-->
 		<GridLite
 			bind:this={gridRef}
 			{db}
