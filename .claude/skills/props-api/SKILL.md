@@ -66,13 +66,15 @@ interface ColumnConfig {
   name: string;                  // Must match database column name
   label?: string;                // Display label (defaults to name)
   dataType?: ColumnDataType;     // Override auto-detected type
-  format?: (value: unknown) => string;  // Custom cell formatter
+  format?: (value: unknown) => string;  // Plain-text cell formatter
   visible?: boolean;             // Default visibility
   width?: number;                // Default width in pixels
   minWidth?: number;             // Min resize width
   maxWidth?: number;             // Max resize width
 }
 ```
+
+> **Note:** `format()` returns plain strings only. For rich HTML (badges, links, buttons), use the `cell` slot instead. See [Slots](#slots) below.
 
 ## RowHeight
 
@@ -90,6 +92,58 @@ interface ColumnConfig {
 | `'excel'` | Two rows: data controls top, view controls bottom |
 | `'shadcn'` | Search left, data controls middle, view controls right |
 | `'aggrid'` | Sidebar panel (experimental, see issue #1) |
+
+## Slots
+
+GridLite exposes named slots for rich content rendering:
+
+| Slot | Props | Purpose |
+|---|---|---|
+| `cell` | `let:value let:row let:column` | Rich HTML cell content (badges, links, buttons) |
+| `toolbar-start` | — | Custom controls at the start of the toolbar |
+| `toolbar-end` | — | Custom controls at the end of the toolbar |
+| `row-detail` | `let:row let:close` | Custom row detail modal content |
+
+**Cell slot** — Overrides all cell rendering. Use `column` to branch per-column:
+
+```svelte
+<GridLite {db} table="products" config={...}>
+  <svelte:fragment slot="cell" let:value let:row let:column>
+    {#if column === 'status'}
+      <span class="badge">{value}</span>
+    {:else}
+      {value ?? ''}
+    {/if}
+  </svelte:fragment>
+</GridLite>
+```
+
+When no `cell` slot is provided, `format()` functions are used as fallback, then raw values.
+
+**Toolbar slots** — Inject custom buttons into both standard and aggrid toolbar layouts:
+
+```svelte
+<GridLite {db} table="products" config={...}>
+  <svelte:fragment slot="toolbar-start">
+    <button on:click={saveView}>Save View</button>
+  </svelte:fragment>
+  <svelte:fragment slot="toolbar-end">
+    <button on:click={exportCSV}>Export</button>
+  </svelte:fragment>
+</GridLite>
+```
+
+**Row detail slot** — Override the default key-value detail modal. Falls back to built-in layout when not provided:
+
+```svelte
+<GridLite {db} table="products" config={...} features={{ rowDetail: true }}>
+  <div slot="row-detail" let:row let:close>
+    <h3>{row.name}</h3>
+    <p>Price: ${row.price}</p>
+    <button on:click={close}>Close</button>
+  </div>
+</GridLite>
+```
 
 ## Public Methods
 

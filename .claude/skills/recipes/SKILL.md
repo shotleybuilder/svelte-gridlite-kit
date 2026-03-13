@@ -1,12 +1,14 @@
 ---
 name: gridlite-recipes
-description: "GridLite common integration patterns: custom cell formatters, context menu actions, row detail modal, raw query mode, programmatic refresh. Use for copy-paste examples."
+description: "GridLite common integration patterns: custom cell formatters, rich cell rendering via slots, toolbar slots, row detail modal, raw query mode, programmatic refresh. Use for copy-paste examples."
 user-invocable: true
 ---
 
 # GridLite Recipes
 
-## Custom Cell Formatters
+## Custom Cell Formatters (Plain Text)
+
+Use `format()` for simple text-only formatting:
 
 ```svelte
 <GridLite
@@ -26,6 +28,48 @@ user-invocable: true
 />
 ```
 
+## Rich Cell Rendering (HTML via Slot)
+
+Use `<slot name="cell">` for badges, links, buttons, or any HTML:
+
+```svelte
+<GridLite {db} table="employees" config={{ id: 'grid' }}>
+  <svelte:fragment slot="cell" let:value let:row let:column>
+    {#if column === 'status'}
+      <span class="badge" class:active={value === 'active'}>
+        {value}
+      </span>
+    {:else if column === 'salary'}
+      <span style="font-weight: 600">${Number(value).toLocaleString()}</span>
+    {:else if column === 'name'}
+      <a href="/employees/{row.id}">{value}</a>
+    {:else}
+      {value ?? ''}
+    {/if}
+  </svelte:fragment>
+</GridLite>
+```
+
+The cell slot receives `value` (cell value), `row` (full row object), and `column` (column name string). When no cell slot is provided, `format()` is used as fallback.
+
+## Custom Toolbar Buttons
+
+Inject buttons into the toolbar with `toolbar-start` and `toolbar-end` slots:
+
+```svelte
+<GridLite {db} table="employees" config={{ id: 'grid' }}>
+  <svelte:fragment slot="toolbar-start">
+    <button on:click={saveView}>Save View</button>
+  </svelte:fragment>
+  <svelte:fragment slot="toolbar-end">
+    <button on:click={exportCSV}>Export CSV</button>
+    <button on:click={reparse}>Reparse</button>
+  </svelte:fragment>
+</GridLite>
+```
+
+Works with all `toolbarLayout` presets including `aggrid`.
+
 ## Row Click Handler
 
 ```svelte
@@ -39,6 +83,8 @@ user-invocable: true
 
 ## Row Detail Modal
 
+Default (auto-generated key-value layout):
+
 ```svelte
 <GridLite
   features={{ rowDetail: true }}
@@ -50,6 +96,21 @@ user-invocable: true
     ]
   }}
 />
+```
+
+Custom row detail content via `row-detail` slot:
+
+```svelte
+<GridLite {db} table="employees" config={{ id: 'grid' }} features={{ rowDetail: true }}>
+  <div slot="row-detail" let:row let:close>
+    <h3>{row.name}</h3>
+    <dl>
+      <dt>Email</dt><dd>{row.email}</dd>
+      <dt>Department</dt><dd>{row.department}</dd>
+    </dl>
+    <button on:click={close}>Close</button>
+  </div>
+</GridLite>
 ```
 
 Click any row to open a detail modal with prev/next navigation.

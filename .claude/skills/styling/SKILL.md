@@ -58,6 +58,8 @@ import '@shotleybuilder/svelte-gridlite-kit/styles/gridlite.css';
 | `'shadcn'` | Search left, data controls middle, view controls right |
 | `'aggrid'` | Sidebar panel (experimental — issue #1) |
 
+All layouts support `toolbar-start` and `toolbar-end` slots for injecting custom buttons. See the [Props API](/props-api) or [Recipes](/recipes) skills for usage.
+
 ## Custom CSS Classes
 
 Override any element's class:
