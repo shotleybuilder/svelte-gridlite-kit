@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 — 2026-03-13
+
+- Widened `@electric-sql/pglite` peer dependency from `^0.2.0` to `>=0.2.0` for 0.3.x compatibility.
+
 ## 0.2.0 — 2026-03-13
 
 ### Added
