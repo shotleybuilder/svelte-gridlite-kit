@@ -22,7 +22,7 @@
 		ColumnSpacing,
 		ToolbarLayout
 	} from './types.js';
-	import { introspectTable, getColumnNames } from './query/schema.js';
+	import { introspectTable, getColumnNames, mapOidToDataType } from './query/schema.js';
 	import {
 		buildQuery,
 		buildCountQuery,
@@ -348,6 +348,18 @@
 		store = createLiveQueryStore(db, sql, params);
 		store.subscribe((state) => {
 			storeState = state;
+
+			// In raw query mode, derive columns from result fields on first result
+			if (query && columns.length === 0 && state.fields.length > 0) {
+				columns = state.fields.map((f) => ({
+					name: f.name,
+					dataType: mapOidToDataType(f.dataTypeID),
+					postgresType: 'unknown',
+					nullable: true,
+					hasDefault: false
+				}));
+				allowedColumns = columns.map((c) => c.name);
+			}
 		});
 	}
 

@@ -1,6 +1,6 @@
 {
   "name": "@shotleybuilder/svelte-gridlite-kit",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A SQL-native data grid component for Svelte and SvelteKit, powered by PGLite",
   "author": "Sertantai",
   "license": "MIT",

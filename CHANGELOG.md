@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.1 — 2026-03-13
+
+### Fixed
+
+- **`query` prop renders empty grid** — When using raw SQL via the `query` prop, columns were never derived from result fields, causing the grid to show "No data" even with rows present. Columns are now auto-derived from `storeState.fields` using a new OID-to-ColumnDataType mapper.
+
+### Added
+
+- `mapOidToDataType()` — Maps Postgres type OIDs (from live query result fields) to GridLite `ColumnDataType`. Exported from the public API.
+
 ## 0.3.0 — 2026-03-13
 
 ### Added

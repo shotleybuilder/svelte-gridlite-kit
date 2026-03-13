@@ -1,61 +1,99 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { PGlite } from '@electric-sql/pglite';
-import { mapPostgresType, introspectTable, getColumnNames } from './schema.js';
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { PGlite } from "@electric-sql/pglite";
+import {
+  mapPostgresType,
+  mapOidToDataType,
+  introspectTable,
+  getColumnNames,
+} from "./schema.js";
 
 // ─── mapPostgresType (pure function, no DB needed) ─────────────────────────
 
-describe('mapPostgresType', () => {
-	it('maps numeric types', () => {
-		expect(mapPostgresType('integer')).toBe('number');
-		expect(mapPostgresType('bigint')).toBe('number');
-		expect(mapPostgresType('smallint')).toBe('number');
-		expect(mapPostgresType('numeric')).toBe('number');
-		expect(mapPostgresType('decimal')).toBe('number');
-		expect(mapPostgresType('real')).toBe('number');
-		expect(mapPostgresType('double precision')).toBe('number');
-		expect(mapPostgresType('serial')).toBe('number');
-		expect(mapPostgresType('bigserial')).toBe('number');
-		expect(mapPostgresType('smallserial')).toBe('number');
-		expect(mapPostgresType('money')).toBe('number');
-	});
+describe("mapPostgresType", () => {
+  it("maps numeric types", () => {
+    expect(mapPostgresType("integer")).toBe("number");
+    expect(mapPostgresType("bigint")).toBe("number");
+    expect(mapPostgresType("smallint")).toBe("number");
+    expect(mapPostgresType("numeric")).toBe("number");
+    expect(mapPostgresType("decimal")).toBe("number");
+    expect(mapPostgresType("real")).toBe("number");
+    expect(mapPostgresType("double precision")).toBe("number");
+    expect(mapPostgresType("serial")).toBe("number");
+    expect(mapPostgresType("bigserial")).toBe("number");
+    expect(mapPostgresType("smallserial")).toBe("number");
+    expect(mapPostgresType("money")).toBe("number");
+  });
 
-	it('maps date/time types', () => {
-		expect(mapPostgresType('date')).toBe('date');
-		expect(mapPostgresType('timestamp without time zone')).toBe('date');
-		expect(mapPostgresType('timestamp with time zone')).toBe('date');
-		expect(mapPostgresType('time without time zone')).toBe('date');
-		expect(mapPostgresType('time with time zone')).toBe('date');
-		expect(mapPostgresType('interval')).toBe('date');
-	});
+  it("maps date/time types", () => {
+    expect(mapPostgresType("date")).toBe("date");
+    expect(mapPostgresType("timestamp without time zone")).toBe("date");
+    expect(mapPostgresType("timestamp with time zone")).toBe("date");
+    expect(mapPostgresType("time without time zone")).toBe("date");
+    expect(mapPostgresType("time with time zone")).toBe("date");
+    expect(mapPostgresType("interval")).toBe("date");
+  });
 
-	it('maps boolean', () => {
-		expect(mapPostgresType('boolean')).toBe('boolean');
-	});
+  it("maps boolean", () => {
+    expect(mapPostgresType("boolean")).toBe("boolean");
+  });
 
-	it('maps text types', () => {
-		expect(mapPostgresType('character varying')).toBe('text');
-		expect(mapPostgresType('character')).toBe('text');
-		expect(mapPostgresType('text')).toBe('text');
-		expect(mapPostgresType('uuid')).toBe('text');
-		expect(mapPostgresType('json')).toBe('text');
-		expect(mapPostgresType('jsonb')).toBe('text');
-	});
+  it("maps text types", () => {
+    expect(mapPostgresType("character varying")).toBe("text");
+    expect(mapPostgresType("character")).toBe("text");
+    expect(mapPostgresType("text")).toBe("text");
+    expect(mapPostgresType("uuid")).toBe("text");
+    expect(mapPostgresType("json")).toBe("text");
+    expect(mapPostgresType("jsonb")).toBe("text");
+  });
 
-	it('is case-insensitive', () => {
-		expect(mapPostgresType('INTEGER')).toBe('number');
-		expect(mapPostgresType('Boolean')).toBe('boolean');
-		expect(mapPostgresType('DATE')).toBe('date');
-	});
+  it("is case-insensitive", () => {
+    expect(mapPostgresType("INTEGER")).toBe("number");
+    expect(mapPostgresType("Boolean")).toBe("boolean");
+    expect(mapPostgresType("DATE")).toBe("date");
+  });
+});
+
+// ─── mapOidToDataType (pure function, no DB needed) ─────────────────────────
+
+describe("mapOidToDataType", () => {
+  it("maps numeric OIDs", () => {
+    expect(mapOidToDataType(23)).toBe("number"); // int4
+    expect(mapOidToDataType(20)).toBe("number"); // int8
+    expect(mapOidToDataType(21)).toBe("number"); // int2
+    expect(mapOidToDataType(700)).toBe("number"); // float4
+    expect(mapOidToDataType(701)).toBe("number"); // float8
+    expect(mapOidToDataType(1700)).toBe("number"); // numeric
+    expect(mapOidToDataType(790)).toBe("number"); // money
+  });
+
+  it("maps date/time OIDs", () => {
+    expect(mapOidToDataType(1082)).toBe("date"); // date
+    expect(mapOidToDataType(1114)).toBe("date"); // timestamp
+    expect(mapOidToDataType(1184)).toBe("date"); // timestamptz
+    expect(mapOidToDataType(1083)).toBe("date"); // time
+    expect(mapOidToDataType(1266)).toBe("date"); // timetz
+    expect(mapOidToDataType(1186)).toBe("date"); // interval
+  });
+
+  it("maps boolean OID", () => {
+    expect(mapOidToDataType(16)).toBe("boolean");
+  });
+
+  it("returns text for unknown OIDs", () => {
+    expect(mapOidToDataType(25)).toBe("text"); // text
+    expect(mapOidToDataType(1043)).toBe("text"); // varchar
+    expect(mapOidToDataType(99999)).toBe("text"); // unknown
+  });
 });
 
 // ─── introspectTable (requires PGLite) ──────────────────────────────────────
 
-describe('introspectTable', () => {
-	let db: PGlite;
+describe("introspectTable", () => {
+  let db: PGlite;
 
-	beforeAll(async () => {
-		db = new PGlite();
-		await db.exec(`
+  beforeAll(async () => {
+    db = new PGlite();
+    await db.exec(`
 			CREATE TABLE employees (
 				id SERIAL PRIMARY KEY,
 				name TEXT NOT NULL,
@@ -67,112 +105,112 @@ describe('introspectTable', () => {
 				notes TEXT
 			)
 		`);
-	});
+  });
 
-	afterAll(async () => {
-		await db.close();
-	});
+  afterAll(async () => {
+    await db.close();
+  });
 
-	it('returns all columns in ordinal order', async () => {
-		const columns = await introspectTable(db, 'employees');
-		expect(columns).toHaveLength(8);
-		expect(columns.map((c) => c.name)).toEqual([
-			'id',
-			'name',
-			'email',
-			'salary',
-			'hire_date',
-			'active',
-			'department',
-			'notes'
-		]);
-	});
+  it("returns all columns in ordinal order", async () => {
+    const columns = await introspectTable(db, "employees");
+    expect(columns).toHaveLength(8);
+    expect(columns.map((c) => c.name)).toEqual([
+      "id",
+      "name",
+      "email",
+      "salary",
+      "hire_date",
+      "active",
+      "department",
+      "notes",
+    ]);
+  });
 
-	it('maps data types correctly', async () => {
-		const columns = await introspectTable(db, 'employees');
-		const byName = Object.fromEntries(columns.map((c) => [c.name, c]));
+  it("maps data types correctly", async () => {
+    const columns = await introspectTable(db, "employees");
+    const byName = Object.fromEntries(columns.map((c) => [c.name, c]));
 
-		expect(byName.id.dataType).toBe('number');
-		expect(byName.name.dataType).toBe('text');
-		expect(byName.email.dataType).toBe('text');
-		expect(byName.salary.dataType).toBe('number');
-		expect(byName.hire_date.dataType).toBe('date');
-		expect(byName.active.dataType).toBe('boolean');
-		expect(byName.department.dataType).toBe('text');
-		expect(byName.notes.dataType).toBe('text');
-	});
+    expect(byName.id.dataType).toBe("number");
+    expect(byName.name.dataType).toBe("text");
+    expect(byName.email.dataType).toBe("text");
+    expect(byName.salary.dataType).toBe("number");
+    expect(byName.hire_date.dataType).toBe("date");
+    expect(byName.active.dataType).toBe("boolean");
+    expect(byName.department.dataType).toBe("text");
+    expect(byName.notes.dataType).toBe("text");
+  });
 
-	it('detects nullable columns', async () => {
-		const columns = await introspectTable(db, 'employees');
-		const byName = Object.fromEntries(columns.map((c) => [c.name, c]));
+  it("detects nullable columns", async () => {
+    const columns = await introspectTable(db, "employees");
+    const byName = Object.fromEntries(columns.map((c) => [c.name, c]));
 
-		// NOT NULL constraint
-		expect(byName.name.nullable).toBe(false);
-		// PRIMARY KEY implies NOT NULL
-		expect(byName.id.nullable).toBe(false);
-		// No constraint — nullable
-		expect(byName.email.nullable).toBe(true);
-		expect(byName.salary.nullable).toBe(true);
-		expect(byName.notes.nullable).toBe(true);
-	});
+    // NOT NULL constraint
+    expect(byName.name.nullable).toBe(false);
+    // PRIMARY KEY implies NOT NULL
+    expect(byName.id.nullable).toBe(false);
+    // No constraint — nullable
+    expect(byName.email.nullable).toBe(true);
+    expect(byName.salary.nullable).toBe(true);
+    expect(byName.notes.nullable).toBe(true);
+  });
 
-	it('detects columns with defaults', async () => {
-		const columns = await introspectTable(db, 'employees');
-		const byName = Object.fromEntries(columns.map((c) => [c.name, c]));
+  it("detects columns with defaults", async () => {
+    const columns = await introspectTable(db, "employees");
+    const byName = Object.fromEntries(columns.map((c) => [c.name, c]));
 
-		// SERIAL has a default (nextval)
-		expect(byName.id.hasDefault).toBe(true);
-		// DEFAULT true
-		expect(byName.active.hasDefault).toBe(true);
-		// No default
-		expect(byName.name.hasDefault).toBe(false);
-		expect(byName.email.hasDefault).toBe(false);
-	});
+    // SERIAL has a default (nextval)
+    expect(byName.id.hasDefault).toBe(true);
+    // DEFAULT true
+    expect(byName.active.hasDefault).toBe(true);
+    // No default
+    expect(byName.name.hasDefault).toBe(false);
+    expect(byName.email.hasDefault).toBe(false);
+  });
 
-	it('preserves postgres type string', async () => {
-		const columns = await introspectTable(db, 'employees');
-		const byName = Object.fromEntries(columns.map((c) => [c.name, c]));
+  it("preserves postgres type string", async () => {
+    const columns = await introspectTable(db, "employees");
+    const byName = Object.fromEntries(columns.map((c) => [c.name, c]));
 
-		expect(byName.id.postgresType).toBe('integer');
-		expect(byName.name.postgresType).toBe('text');
-		expect(byName.salary.postgresType).toBe('numeric');
-		expect(byName.hire_date.postgresType).toBe('date');
-		expect(byName.active.postgresType).toBe('boolean');
-	});
+    expect(byName.id.postgresType).toBe("integer");
+    expect(byName.name.postgresType).toBe("text");
+    expect(byName.salary.postgresType).toBe("numeric");
+    expect(byName.hire_date.postgresType).toBe("date");
+    expect(byName.active.postgresType).toBe("boolean");
+  });
 
-	it('returns empty array for non-existent table', async () => {
-		const columns = await introspectTable(db, 'nonexistent_table');
-		expect(columns).toEqual([]);
-	});
+  it("returns empty array for non-existent table", async () => {
+    const columns = await introspectTable(db, "nonexistent_table");
+    expect(columns).toEqual([]);
+  });
 });
 
 // ─── getColumnNames ─────────────────────────────────────────────────────────
 
-describe('getColumnNames', () => {
-	let db: PGlite;
+describe("getColumnNames", () => {
+  let db: PGlite;
 
-	beforeAll(async () => {
-		db = new PGlite();
-		await db.exec(`
+  beforeAll(async () => {
+    db = new PGlite();
+    await db.exec(`
 			CREATE TABLE products (
 				id SERIAL PRIMARY KEY,
 				name TEXT NOT NULL,
 				price NUMERIC(10, 2)
 			)
 		`);
-	});
+  });
 
-	afterAll(async () => {
-		await db.close();
-	});
+  afterAll(async () => {
+    await db.close();
+  });
 
-	it('returns column names as string array', async () => {
-		const names = await getColumnNames(db, 'products');
-		expect(names).toEqual(['id', 'name', 'price']);
-	});
+  it("returns column names as string array", async () => {
+    const names = await getColumnNames(db, "products");
+    expect(names).toEqual(["id", "name", "price"]);
+  });
 
-	it('returns empty array for non-existent table', async () => {
-		const names = await getColumnNames(db, 'nonexistent');
-		expect(names).toEqual([]);
-	});
+  it("returns empty array for non-existent table", async () => {
+    const names = await getColumnNames(db, "nonexistent");
+    expect(names).toEqual([]);
+  });
 });

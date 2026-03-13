@@ -61,6 +61,7 @@ export type {
 // Schema introspection
 export {
   mapPostgresType,
+  mapOidToDataType,
   introspectTable,
   getColumnNames,
 } from "./query/schema.js";
