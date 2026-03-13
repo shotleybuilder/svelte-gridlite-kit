@@ -1006,6 +1006,9 @@
 	{:else}
 		{#if table && toolbarLayout !== 'aggrid'}
 			<div class="gridlite-toolbar">
+				<!-- Custom toolbar content (start) -->
+				<slot name="toolbar-start" />
+
 				<!-- Column Visibility (data control) -->
 				{#if features.columnVisibility}
 					<div class="gridlite-toolbar-columns gridlite-view-control">
@@ -1184,6 +1187,9 @@
 						</div>
 					</div>
 				{/if}
+
+				<!-- Custom toolbar content (end) -->
+				<slot name="toolbar-end" />
 			</div>
 		{/if}
 
@@ -1191,6 +1197,9 @@
 			<!-- AG Grid layout: sidebar on right, minimal toolbar on top -->
 			<!-- TODO(#1): aggrid layout is experimental — not production-ready. Needs debugging. -->
 			<div class="gridlite-toolbar gridlite-toolbar-aggrid-top">
+				<!-- Custom toolbar content (start) -->
+				<slot name="toolbar-start" />
+
 				{#if features.globalSearch}
 					<div class="gridlite-toolbar-search">
 						<div class="gridlite-search">
@@ -1298,6 +1307,9 @@
 						{/if}
 					</div>
 				</div>
+
+				<!-- Custom toolbar content (end) -->
+				<slot name="toolbar-end" />
 			</div>
 		{/if}
 
@@ -1446,16 +1458,18 @@
 											class={`gridlite-td ${classNames.td ?? ''}`}
 											on:contextmenu={(e) => handleCellContextMenu(e, row, col)}
 										>
-											{#if config?.columns}
-												{@const colConfig = config.columns.find((c) => c.name === col.name)}
-												{#if colConfig?.format}
-													{colConfig.format(row[col.name])}
+											<slot name="cell" value={row[col.name]} {row} column={col.name}>
+												{#if config?.columns}
+													{@const colConfig = config.columns.find((c) => c.name === col.name)}
+													{#if colConfig?.format}
+														{colConfig.format(row[col.name])}
+													{:else}
+														{row[col.name] ?? ''}
+													{/if}
 												{:else}
 													{row[col.name] ?? ''}
 												{/if}
-											{:else}
-												{row[col.name] ?? ''}
-											{/if}
+											</slot>
 										</td>
 									{/each}
 								</tr>
@@ -1495,16 +1509,18 @@
 										class={`gridlite-td ${classNames.td ?? ''}`}
 										on:contextmenu={(e) => handleCellContextMenu(e, row, col)}
 									>
-										{#if config?.columns}
-											{@const colConfig = config.columns.find((c) => c.name === col.name)}
-											{#if colConfig?.format}
-												{colConfig.format(row[col.name])}
+										<slot name="cell" value={row[col.name]} {row} column={col.name}>
+											{#if config?.columns}
+												{@const colConfig = config.columns.find((c) => c.name === col.name)}
+												{#if colConfig?.format}
+													{colConfig.format(row[col.name])}
+												{:else}
+													{row[col.name] ?? ''}
+												{/if}
 											{:else}
 												{row[col.name] ?? ''}
 											{/if}
-										{:else}
-											{row[col.name] ?? ''}
-										{/if}
+										</slot>
 									</td>
 								{/each}
 							</tr>
@@ -1614,32 +1630,36 @@
 				onNext={nextRowDetail}
 			>
 				{#if rowDetailRow}
-					<dl class="gridlite-row-detail">
-						{#each orderedColumns as col}
-							<div class="gridlite-row-detail-field">
-								<dt>
-									{#if config?.columns}
-										{@const colConfig = config.columns.find((c) => c.name === col.name)}
-										{colConfig?.label ?? col.name}
-									{:else}
-										{col.name}
-									{/if}
-								</dt>
-								<dd>
-									{#if config?.columns}
-										{@const colConfig = config.columns.find((c) => c.name === col.name)}
-										{#if colConfig?.format}
-											{colConfig.format(rowDetailRow[col.name])}
+					{#if $$slots['row-detail']}
+						<slot name="row-detail" row={rowDetailRow} close={closeRowDetail} />
+					{:else}
+						<dl class="gridlite-row-detail">
+							{#each orderedColumns as col}
+								<div class="gridlite-row-detail-field">
+									<dt>
+										{#if config?.columns}
+											{@const colConfig = config.columns.find((c) => c.name === col.name)}
+											{colConfig?.label ?? col.name}
+										{:else}
+											{col.name}
+										{/if}
+									</dt>
+									<dd>
+										{#if config?.columns}
+											{@const colConfig = config.columns.find((c) => c.name === col.name)}
+											{#if colConfig?.format}
+												{colConfig.format(rowDetailRow[col.name])}
+											{:else}
+												{rowDetailRow[col.name] ?? '—'}
+											{/if}
 										{:else}
 											{rowDetailRow[col.name] ?? '—'}
 										{/if}
-									{:else}
-										{rowDetailRow[col.name] ?? '—'}
-									{/if}
-								</dd>
-							</div>
-						{/each}
-					</dl>
+									</dd>
+								</div>
+							{/each}
+						</dl>
+					{/if}
 				{/if}
 			</RowDetailModal>
 		{/if}

@@ -1,8 +1,9 @@
 <!--
-  Custom Cell Formatters Example
-  ==============================
-  Shows custom cell formatting: currency, dates, booleans, conditional values.
-  Copy the format functions for your own columns.
+  Custom Cell Rendering Example
+  =============================
+  Two approaches:
+  1. format() functions — return plain strings (simple formatting)
+  2. <slot name="cell"> — full HTML/component rendering (badges, links, buttons)
 -->
 <script lang="ts">
 	import { onMount } from 'svelte';
@@ -47,11 +48,15 @@
 
 		ready = true;
 	});
+
+	function handleEdit(row: Record<string, unknown>) {
+		alert(`Edit: ${row.name} (ID ${row.id})`);
+	}
 </script>
 
 <main>
-	<h1>Custom Cell Formatters</h1>
-	<p>Currency formatting, date formatting, boolean display, rating stars, and stock level indicators.</p>
+	<h1>Custom Cell Rendering</h1>
+	<p>Rich HTML cells via <code>&lt;slot name="cell"&gt;</code>: badges, colored tags, links, and action buttons.</p>
 
 	{#if ready && db}
 		<GridLite
@@ -63,32 +68,12 @@
 					{ name: 'id', label: 'ID' },
 					{ name: 'name', label: 'Product' },
 					{ name: 'category', label: 'Category' },
-
-					// Currency formatting
-					{ name: 'price', label: 'Price',
-						format: (v) => v != null ? `$${Number(v).toFixed(2)}` : '—' },
-
-					// Stock level with indicator
-					{ name: 'stock', label: 'Stock',
-						format: (v) => {
-							const n = Number(v);
-							if (n === 0) return 'Out of stock';
-							if (n < 20) return `${n} (Low)`;
-							return n.toLocaleString();
-						}
-					},
-
-					// Rating as stars
-					{ name: 'rating', label: 'Rating',
-						format: (v) => v != null ? `${'★'.repeat(Math.round(Number(v)))}${'☆'.repeat(5 - Math.round(Number(v)))} ${Number(v).toFixed(1)}` : 'No rating' },
-
-					// Date formatting
+					{ name: 'price', label: 'Price' },
+					{ name: 'stock', label: 'Stock' },
+					{ name: 'rating', label: 'Rating' },
 					{ name: 'created_at', label: 'Added',
 						format: (v) => v ? new Date(String(v)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—' },
-
-					// Boolean as text
-					{ name: 'active', label: 'Status',
-						format: (v) => v ? 'Active' : 'Discontinued' }
+					{ name: 'active', label: 'Status' }
 				],
 				pagination: { pageSize: 25 }
 			}}
@@ -98,7 +83,48 @@
 				pagination: true,
 				columnVisibility: true
 			}}
-		/>
+		>
+			<!-- Rich cell rendering via slot -->
+			<svelte:fragment slot="cell" let:value let:row let:column>
+				{#if column === 'price'}
+					<span class="price">${Number(value).toFixed(2)}</span>
+				{:else if column === 'stock'}
+					{@const n = Number(value)}
+					<span class="stock-badge" class:out={n === 0} class:low={n > 0 && n < 20} class:ok={n >= 20}>
+						{n === 0 ? 'Out of stock' : n < 20 ? `${n} Low` : n.toLocaleString()}
+					</span>
+				{:else if column === 'rating'}
+					{#if value != null}
+						<span class="rating">
+							{#each Array(5) as _, i}
+								<span class="star" class:filled={i < Math.round(Number(value))}>★</span>
+							{/each}
+							<span class="rating-num">{Number(value).toFixed(1)}</span>
+						</span>
+					{:else}
+						<span class="no-rating">—</span>
+					{/if}
+				{:else if column === 'active'}
+					<span class="status-badge" class:active={value === true} class:inactive={value !== true}>
+						{value ? 'Active' : 'Discontinued'}
+					</span>
+				{:else if column === 'category'}
+					<span class="category-tag category-{String(value).toLowerCase()}">{value}</span>
+				{:else if column === 'name'}
+					<strong>{value}</strong>
+					<button class="edit-btn" on:click|stopPropagation={() => handleEdit(row)}>Edit</button>
+				{:else}
+					{value ?? ''}
+				{/if}
+			</svelte:fragment>
+
+			<!-- Custom toolbar buttons -->
+			<svelte:fragment slot="toolbar-end">
+				<button class="toolbar-btn" on:click={() => alert('Export clicked')}>
+					Export CSV
+				</button>
+			</svelte:fragment>
+		</GridLite>
 	{:else}
 		<p>Loading...</p>
 	{/if}
@@ -108,4 +134,56 @@
 	main { max-width: 1100px; margin: 0 auto; padding: 24px; }
 	h1 { margin: 0 0 4px; font-size: 1.5rem; }
 	p { margin: 0 0 16px; color: #666; }
+	code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 0.9em; }
+
+	/* Price */
+	.price { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+	/* Stock badges */
+	.stock-badge {
+		display: inline-block; padding: 2px 8px; border-radius: 12px;
+		font-size: 0.8em; font-weight: 500;
+	}
+	.stock-badge.out { background: #fee2e2; color: #991b1b; }
+	.stock-badge.low { background: #fef3c7; color: #92400e; }
+	.stock-badge.ok { background: #d1fae5; color: #065f46; }
+
+	/* Rating stars */
+	.rating { white-space: nowrap; }
+	.star { color: #d1d5db; }
+	.star.filled { color: #f59e0b; }
+	.rating-num { margin-left: 4px; font-size: 0.85em; color: #6b7280; }
+	.no-rating { color: #9ca3af; }
+
+	/* Status badges */
+	.status-badge {
+		display: inline-block; padding: 2px 8px; border-radius: 12px;
+		font-size: 0.8em; font-weight: 500;
+	}
+	.status-badge.active { background: #d1fae5; color: #065f46; }
+	.status-badge.inactive { background: #f3f4f6; color: #6b7280; }
+
+	/* Category tags */
+	.category-tag {
+		display: inline-block; padding: 2px 8px; border-radius: 4px;
+		font-size: 0.8em; font-weight: 500;
+	}
+	.category-electronics { background: #dbeafe; color: #1e40af; }
+	.category-hardware { background: #fef3c7; color: #92400e; }
+	.category-home { background: #ede9fe; color: #5b21b6; }
+
+	/* Edit button */
+	.edit-btn {
+		margin-left: 8px; padding: 1px 8px; border: 1px solid #d1d5db;
+		border-radius: 4px; background: white; font-size: 0.75em;
+		cursor: pointer; color: #374151;
+	}
+	.edit-btn:hover { background: #f3f4f6; }
+
+	/* Toolbar button */
+	.toolbar-btn {
+		padding: 4px 12px; border: 1px solid #d1d5db; border-radius: 4px;
+		background: white; font-size: 0.85em; cursor: pointer; color: #374151;
+	}
+	.toolbar-btn:hover { background: #f3f4f6; }
 </style>
