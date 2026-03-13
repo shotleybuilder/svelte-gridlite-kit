@@ -37,6 +37,7 @@
 		type LiveQueryState
 	} from './query/live.js';
 	import { runMigrations } from './state/migrations.js';
+	import { loadColumnState, saveColumnState } from './state/views.js';
 	import FilterBar from './components/FilterBar.svelte';
 	import SortBar from './components/SortBar.svelte';
 	import GroupBar from './components/GroupBar.svelte';
@@ -142,6 +143,11 @@
 	const COL_MAX_WIDTH = 1000;
 	const COL_DEFAULT_WIDTH = 180;
 
+	// Custom labels state (user-editable, persisted)
+	let customLabels: Record<string, string> = {};
+	let editingColumnLabel: string | null = null;
+	let editingLabelValue = '';
+
 	// Grouped view state
 	interface GroupRow {
 		/** The group column values at this level (e.g. { department: 'Engineering' }) */
@@ -227,6 +233,24 @@
 		? orderedColumns.filter((col) => !validGrouping.some((g) => g.column === col.name))
 		: orderedColumns;
 
+	// Merge custom labels into columnConfigs for sub-components
+	$: mergedColumnConfigs = (() => {
+		const base = config?.columns ?? [];
+		if (Object.keys(customLabels).length === 0) return base;
+		// Build a map of existing configs
+		const configMap = new Map(base.map((c) => [c.name, c]));
+		// Merge custom labels: override existing or add new entries
+		for (const [name, label] of Object.entries(customLabels)) {
+			const existing = configMap.get(name);
+			if (existing) {
+				configMap.set(name, { ...existing, label });
+			} else {
+				configMap.set(name, { name, label });
+			}
+		}
+		return [...configMap.values()];
+	})();
+
 	/** Build a composite key for a group row (using values up to its depth) */
 	function groupKey(group: GroupRow): string {
 		return Object.entries(group.values)
@@ -250,6 +274,16 @@
 					error = `Table "${table}" not found or has no columns`;
 					return;
 				}
+			}
+
+			// Load persisted custom labels
+			if (config?.id) {
+				const savedState = await loadColumnState(db, config.id);
+				const labels: Record<string, string> = {};
+				for (const col of savedState) {
+					if (col.label) labels[col.name] = col.label;
+				}
+				if (Object.keys(labels).length > 0) customLabels = labels;
 			}
 
 			initialized = true;
@@ -699,13 +733,12 @@
 		col: ColumnMetadata
 	) {
 		event.preventDefault();
-		const colConfig = config?.columns?.find((c) => c.name === col.name);
 		contextMenu = {
 			x: event.clientX,
 			y: event.clientY,
 			value: row[col.name],
 			columnName: col.name,
-			columnLabel: colConfig?.label ?? col.name,
+			columnLabel: getColumnLabel(col),
 			isNumeric: col.dataType === 'number'
 		};
 	}
@@ -800,8 +833,72 @@
 	}
 
 	function getColumnLabel(col: ColumnMetadata): string {
+		if (col.name in customLabels) return customLabels[col.name];
 		const cfg = config?.columns?.find((c) => c.name === col.name);
 		return cfg?.label ?? col.name;
+	}
+
+	// ─── Column Label Editing ─────────────────────────────────────────────────
+
+	function startEditingLabel(columnName: string) {
+		const col = columns.find((c) => c.name === columnName);
+		if (!col) return;
+		editingColumnLabel = columnName;
+		editingLabelValue = getColumnLabel(col);
+	}
+
+	function commitLabelEdit() {
+		if (!editingColumnLabel) return;
+		const columnName = editingColumnLabel;
+		const newLabel = editingLabelValue.trim();
+
+		// Resolve the default label (config or column name)
+		const cfg = config?.columns?.find((c) => c.name === columnName);
+		const defaultLabel = cfg?.label ?? columnName;
+
+		if (newLabel && newLabel !== defaultLabel) {
+			// Save custom label
+			customLabels = { ...customLabels, [columnName]: newLabel };
+		} else {
+			// Reverted to default — remove custom label
+			const { [columnName]: _, ...rest } = customLabels;
+			customLabels = rest;
+		}
+
+		editingColumnLabel = null;
+		editingLabelValue = '';
+		persistColumnLabels();
+		notifyStateChange();
+	}
+
+	function cancelLabelEdit() {
+		editingColumnLabel = null;
+		editingLabelValue = '';
+	}
+
+	function handleLabelKeydown(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			event.preventDefault();
+			commitLabelEdit();
+		} else if (event.key === 'Escape') {
+			cancelLabelEdit();
+		}
+	}
+
+	async function persistColumnLabels() {
+		if (!config?.id) return;
+		try {
+			const colState = columns.map((col, i) => ({
+				name: col.name,
+				visible: isColumnVisible(col.name),
+				width: columnSizing[col.name] ?? undefined,
+				position: columnOrder.indexOf(col.name) >= 0 ? columnOrder.indexOf(col.name) : i,
+				label: customLabels[col.name] ?? null
+			}));
+			await saveColumnState(db, config.id, colState);
+		} catch (err) {
+			console.error('Failed to persist column labels:', err);
+		}
 	}
 
 	function isColumnVisible(columnName: string): boolean {
@@ -1030,7 +1127,7 @@
 						</button>
 						<ColumnPicker
 							{columns}
-							columnConfigs={config?.columns ?? []}
+							columnConfigs={mergedColumnConfigs}
 							{columnVisibility}
 							{columnOrder}
 							isOpen={showColumnPicker}
@@ -1049,7 +1146,7 @@
 							{db}
 							{table}
 							{columns}
-							columnConfigs={config?.columns ?? []}
+							columnConfigs={mergedColumnConfigs}
 							{allowedColumns}
 							conditions={filters}
 							onConditionsChange={handleFiltersChange}
@@ -1066,7 +1163,7 @@
 					<div class="gridlite-toolbar-group">
 						<GroupBar
 							{columns}
-							columnConfigs={config?.columns ?? []}
+							columnConfigs={mergedColumnConfigs}
 							{grouping}
 							onGroupingChange={handleGroupingChange}
 							isExpanded={groupExpanded}
@@ -1080,7 +1177,7 @@
 					<div class="gridlite-toolbar-sort">
 						<SortBar
 							{columns}
-							columnConfigs={config?.columns ?? []}
+							columnConfigs={mergedColumnConfigs}
 							{sorting}
 							onSortingChange={handleSortingChange}
 							isExpanded={sortExpanded}
@@ -1227,7 +1324,7 @@
 					<div class="gridlite-toolbar-sort">
 						<SortBar
 							{columns}
-							columnConfigs={config?.columns ?? []}
+							columnConfigs={mergedColumnConfigs}
 							{sorting}
 							onSortingChange={handleSortingChange}
 							isExpanded={sortExpanded}
@@ -1239,7 +1336,7 @@
 					<div class="gridlite-toolbar-group">
 						<GroupBar
 							{columns}
-							columnConfigs={config?.columns ?? []}
+							columnConfigs={mergedColumnConfigs}
 							{grouping}
 							onGroupingChange={handleGroupingChange}
 							isExpanded={groupExpanded}
@@ -1338,14 +1435,27 @@
 								on:dragend={handleDragEnd}
 								style={features.columnReordering ? 'cursor: grab;' : ''}
 							>
-								<span class="gridlite-th-label">
-									{#if config?.columns}
-										{@const colConfig = config.columns.find((c) => c.name === col.name)}
-										{colConfig?.label ?? col.name}
-									{:else}
-										{col.name}
-									{/if}
-								</span>
+								{#if editingColumnLabel === col.name}
+									<!-- svelte-ignore a11y-autofocus -->
+									<input
+										class="gridlite-th-label-input"
+										type="text"
+										bind:value={editingLabelValue}
+										on:blur={commitLabelEdit}
+										on:keydown={handleLabelKeydown}
+										on:click|stopPropagation
+										autofocus
+									/>
+								{:else}
+									<!-- svelte-ignore a11y-no-static-element-interactions -->
+									<span
+										class="gridlite-th-label"
+										on:dblclick|stopPropagation={() => startEditingLabel(col.name)}
+										title="Double-click to rename"
+									>
+										{getColumnLabel(col)}
+									</span>
+								{/if}
 								{#if table}
 									<button
 										class="gridlite-th-menu-btn"
@@ -1571,7 +1681,7 @@
 						<div class="gridlite-aggrid-sidebar-header">Columns</div>
 						<ColumnPicker
 							{columns}
-							columnConfigs={config?.columns ?? []}
+							columnConfigs={mergedColumnConfigs}
 							{columnVisibility}
 							{columnOrder}
 							isOpen={true}
@@ -1589,7 +1699,7 @@
 							{db}
 							table={table ?? ''}
 							{columns}
-							columnConfigs={config?.columns ?? []}
+							columnConfigs={mergedColumnConfigs}
 							{allowedColumns}
 							conditions={filters}
 							onConditionsChange={handleFiltersChange}
@@ -1636,17 +1746,10 @@
 						<dl class="gridlite-row-detail">
 							{#each orderedColumns as col}
 								<div class="gridlite-row-detail-field">
-									<dt>
-										{#if config?.columns}
-											{@const colConfig = config.columns.find((c) => c.name === col.name)}
-											{colConfig?.label ?? col.name}
-										{:else}
-											{col.name}
-										{/if}
-									</dt>
+									<dt>{getColumnLabel(col)}</dt>
 									<dd>
-										{#if config?.columns}
-											{@const colConfig = config.columns.find((c) => c.name === col.name)}
+										{#if mergedColumnConfigs.length > 0}
+											{@const colConfig = mergedColumnConfigs.find((c) => c.name === col.name)}
 											{#if colConfig?.format}
 												{colConfig.format(rowDetailRow[col.name])}
 											{:else}

@@ -156,12 +156,13 @@ The component accepts a **PGLite instance + table name** (or a raw SQL query), n
 | Numeric range hints | Scan all rows for min/max | `SELECT MIN(), MAX()` |
 | Column type detection | Sample rows and guess | Schema introspection |
 | Config persistence | localStorage JSON | PGLite tables with IndexedDB backing |
+| Column labels | Static config only | User-editable, persisted in PGLite |
 | Global search | String matching across columns | `ILIKE` or full-text search |
 
 ### Key Design Decisions
 
 - **No TanStack Table dependency.** The SQL engine IS the table engine.
-- **PGLite is the state store.** Table configs, view presets, column visibility, sort/filter state — all stored in PGLite tables, persisted automatically via IndexedDB.
+- **PGLite is the state store.** Table configs, view presets, column visibility, custom labels, sort/filter state — all stored in PGLite tables, persisted automatically via IndexedDB.
 - **FilterBar emits SQL.** Postgres operators (regex, `ILIKE`, date math, JSON paths, FTS) are available natively.
 - **Live queries drive reactivity.** PGLite `live.query()` replaces Svelte writable stores for data. UI auto-updates when underlying data changes.
 - **Column types come from schema introspection**, not data sampling.

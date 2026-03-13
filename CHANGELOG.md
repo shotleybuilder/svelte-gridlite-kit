@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.0 — 2026-03-13
+
+### Added
+
+- **User-editable column labels** — Double-click any column header to rename it inline. Commit with Enter or blur, cancel with Escape. Reverts to the default label when cleared.
+- **Label persistence** — Custom labels are saved to `_gridlite_column_state` via a new `label TEXT` column (migration v2) and restored on init.
+- **Label propagation** — Custom labels flow through to FilterBar, SortBar, GroupBar, ColumnPicker, CellContextMenu, and RowDetailModal via a merged `columnConfigs` object.
+
+### Migration from 0.2.x
+
+No breaking changes. The v2 migration (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS label TEXT`) runs automatically on init. Existing column state is preserved with `label` defaulting to `NULL`.
+
 ## 0.2.1 — 2026-03-13
 
 - Widened `@electric-sql/pglite` peer dependency from `^0.2.0` to `>=0.2.0` for 0.3.x compatibility.

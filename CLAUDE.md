@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **svelte-gridlite-kit** (`@shotleybuilder/svelte-gridlite-kit`) is a SQL-native data grid component library for Svelte and SvelteKit, powered by PGLite (Postgres in the browser via WASM). It is a purpose-built rewrite of `@shotleybuilder/svelte-table-kit`, replacing TanStack Table's in-memory row models with PGLite's SQL engine for filtering, sorting, grouping, and pagination.
 
-**Status:** Early development — not yet published to npm.
+**Status:** Beta — published to npm as `@shotleybuilder/svelte-gridlite-kit`.
 
 ## Development Commands
 
@@ -68,6 +68,7 @@ The component accepts a **PGLite instance + table name** (or a raw SQL query), n
 | Numeric range hints | `SELECT MIN(), MAX()` |
 | Column type detection | Schema introspection (`information_schema`) |
 | Config persistence | PGLite tables with IndexedDB backing |
+| Column labels | User-editable, persisted in `_gridlite_column_state` |
 | Global search | `ILIKE` or full-text search |
 
 ### Project Structure
@@ -105,6 +106,7 @@ src/lib/
 - Manages SQL query construction via the query builder
 - Subscribes to PGLite live queries for reactive updates
 - Integrates FilterBar, GroupBar, SortBar, and column controls
+- User-editable column labels (double-click header) with PGLite persistence
 
 **query/builder.ts** — SQL query builder
 - Translates FilterCondition objects to parameterized `WHERE` clauses
@@ -123,7 +125,7 @@ src/lib/
 
 **state/views.ts** — View configuration persistence
 - Table configs, view presets stored as PGLite table rows
-- Column visibility, ordering, sizing persisted in SQL
+- Column visibility, ordering, sizing, custom labels persisted in SQL
 - Replaces localStorage-based persistence from svelte-table-kit
 
 **state/migrations.ts** — Config table schemas

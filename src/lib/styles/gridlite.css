@@ -752,6 +752,21 @@
 
 .gridlite-th-label {
   flex: 1;
+  cursor: default;
+}
+
+.gridlite-th-label-input {
+  flex: 1;
+  font: inherit;
+  font-weight: inherit;
+  font-size: inherit;
+  padding: 0 2px;
+  margin: -1px 0;
+  border: 1px solid #3b82f6;
+  border-radius: 3px;
+  outline: none;
+  background: #fff;
+  min-width: 40px;
 }
 
 .gridlite-th-menu-btn {

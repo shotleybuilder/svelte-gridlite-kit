@@ -62,6 +62,14 @@ const MIGRATIONS: Migration[] = [
 				ON _gridlite_column_state (grid_id);
 		`,
   },
+  {
+    version: 2,
+    description:
+      "Add label column to column_state for user-editable column names",
+    sql: `
+			ALTER TABLE _gridlite_column_state ADD COLUMN IF NOT EXISTS label TEXT;
+		`,
+  },
 ];
 
 // ─── Migration Runner ───────────────────────────────────────────────────────
