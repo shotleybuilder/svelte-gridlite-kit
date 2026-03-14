@@ -246,7 +246,7 @@ Example pages in `src/routes/examples/` demonstrate focused, single-feature usag
 | `/examples/filtering` | FilterBar + programmatic filter buttons |
 | `/examples/grouping` | Hierarchical grouping with aggregations |
 | `/examples/custom-cells` | Currency, date, boolean, rating formatters |
-| `/examples/raw-query` | JOIN, aggregate, CTE queries via `query` prop |
+| `/examples/raw-query` | JOIN, aggregate, CTE queries via `query` prop with full toolbar |
 
 The main demo at `/` (root) shows all features together with interactive toggles.
 
@@ -258,7 +258,7 @@ The top 5 things a Claude Code agent needs when integrating this library:
 
 2. **Disable SSR.** Add `export const ssr = false;` to `+layout.ts` or `+page.ts`. Add `optimizeDeps: { exclude: ['@electric-sql/pglite'] }` to `vite.config.ts`.
 
-3. **Table name OR raw query.** Use `table="employees"` for single-table grids, or `query="SELECT e.*, d.name AS dept_name FROM employees e JOIN departments d ON ..."` for complex queries. Never use both.
+3. **Table name OR raw query.** Use `table="employees"` for single-table grids, or `query="SELECT e.*, d.name AS dept_name FROM employees e JOIN departments d ON ..."` for complex queries. Never use both. Both modes support all toolbar features — query mode wraps the SQL as a subquery.
 
 4. **Column config is optional.** If `config.columns` is omitted, GridLite introspects the schema and auto-generates columns. Provide `config.columns` when you need custom labels, formatting, or to control which columns appear.
 

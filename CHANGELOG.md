@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.0 — 2026-03-14
+
+### Added
+
+- **Full toolbar in query mode** — Filter, sort, group, search, pagination, column visibility, column menu, and toolbar slots now work with the `query` prop. The consumer's SQL is wrapped as a subquery (`SELECT * FROM (...) AS _gridlite_sub WHERE/ORDER BY/LIMIT`) so all UI controls apply clauses on top.
+- **`source` option in query builder** — `buildQuery`, `buildCountQuery`, `buildGroupSummaryQuery`, `buildGroupCountQuery`, and `buildGroupDetailQuery` accept an optional `source` (raw SQL string) as an alternative to `table`. Exported `resolveFrom()` helper.
+- **FilterBar `source` prop** — `SELECT DISTINCT` value suggestions and `MIN/MAX` range hints work in query mode via the `source` prop.
+
+### Changed
+
+- Removed `{#if table}` guards on toolbar, aggrid layout, and column header menu — all render in both table and query modes.
+- Raw query demo (`/examples/raw-query`) updated with all features enabled (filter, sort, group, pagination, search, column controls).
+
+### Migration from 0.3.x
+
+No breaking changes. Existing `table` prop usage is unchanged. The `query` prop now gets full feature parity with `table` mode automatically.
+
 ## 0.3.1 — 2026-03-13
 
 ### Fixed

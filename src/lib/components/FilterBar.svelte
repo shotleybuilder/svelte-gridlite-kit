@@ -13,14 +13,17 @@
 		ColumnConfig
 	} from '../types.js';
 	import type { PGliteWithLive } from '../query/live.js';
-	import { quoteIdentifier } from '../query/builder.js';
+	import { quoteIdentifier, resolveFrom } from '../query/builder.js';
 	import FilterConditionComponent from './FilterCondition.svelte';
 
 	/** PGLite instance for running suggestion queries */
 	export let db: PGliteWithLive;
 
-	/** Table name for suggestion queries */
-	export let table: string;
+	/** Table name for suggestion queries (mutually exclusive with `source`) */
+	export let table: string = '';
+
+	/** Raw SQL subquery source for suggestion queries (mutually exclusive with `table`) */
+	export let source: string = '';
 
 	/** Introspected column metadata */
 	export let columns: ColumnMetadata[];
@@ -53,15 +56,16 @@
 	 * Results are cached per column name.
 	 */
 	async function getColumnValues(columnName: string): Promise<string[]> {
-		if (!columnName || !table) return [];
+		if (!columnName || (!table && !source)) return [];
 
 		if (columnValuesCache.has(columnName)) {
 			return columnValuesCache.get(columnName)!;
 		}
 
 		try {
+			const fromClause = resolveFrom(table || undefined, source || undefined);
 			const quotedCol = quoteIdentifier(columnName, allowedColumns);
-			const sql = `SELECT DISTINCT ${quotedCol}::TEXT AS val FROM ${quoteIdentifier(table)} WHERE ${quotedCol} IS NOT NULL ORDER BY val LIMIT 200`;
+			const sql = `SELECT DISTINCT ${quotedCol}::TEXT AS val FROM ${fromClause} WHERE ${quotedCol} IS NOT NULL ORDER BY val LIMIT 200`;
 			const result = await db.query<{ val: string }>(sql);
 			const values = result.rows.map((r) => r.val);
 			columnValuesCache.set(columnName, values);
@@ -77,7 +81,7 @@
 	 * Results are cached per column name.
 	 */
 	async function getNumericRange(columnName: string): Promise<{ min: number; max: number } | null> {
-		if (!columnName || !table) return null;
+		if (!columnName || (!table && !source)) return null;
 
 		if (numericRangeCache.has(columnName)) {
 			return numericRangeCache.get(columnName)!;
@@ -93,8 +97,9 @@
 		}
 
 		try {
+			const fromClause = resolveFrom(table || undefined, source || undefined);
 			const quotedCol = quoteIdentifier(columnName, allowedColumns);
-			const sql = `SELECT MIN(${quotedCol})::NUMERIC AS min_val, MAX(${quotedCol})::NUMERIC AS max_val FROM ${quoteIdentifier(table)}`;
+			const sql = `SELECT MIN(${quotedCol})::NUMERIC AS min_val, MAX(${quotedCol})::NUMERIC AS max_val FROM ${fromClause}`;
 			const result = await db.query<{ min_val: string; max_val: string }>(sql);
 			const row = result.rows[0];
 			if (row && row.min_val != null && row.max_val != null) {

@@ -110,7 +110,7 @@ Focused, single-feature demo pages in `src/routes/examples/`:
 | `/examples/filtering` | FilterBar + programmatic filter buttons |
 | `/examples/grouping` | Hierarchical grouping with aggregations |
 | `/examples/custom-cells` | Currency, date, boolean, rating star formatters |
-| `/examples/raw-query` | JOIN, aggregate, CTE queries via the `query` prop |
+| `/examples/raw-query` | JOIN, aggregate, CTE queries via `query` prop with full toolbar |
 
 Run `npm run dev` and visit `http://localhost:5173/examples/minimal` to start.
 

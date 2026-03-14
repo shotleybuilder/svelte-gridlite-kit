@@ -18,6 +18,23 @@ import type {
   AggregateFunction,
 } from "../types.js";
 
+// ─── Source Resolution ──────────────────────────────────────────────────────
+
+/**
+ * Resolve a FROM clause from either a table name or a raw SQL source.
+ * When `source` is provided, it's used as a subquery: `(source) AS _gridlite_sub`.
+ * When `table` is provided, it's quoted as an identifier: `"table"`.
+ */
+export function resolveFrom(table?: string, source?: string): string {
+  if (source) {
+    return `(${source}) AS _gridlite_sub`;
+  }
+  if (table) {
+    return quoteIdentifier(table);
+  }
+  throw new Error("Either `table` or `source` must be provided");
+}
+
 // ─── Column Name Validation ─────────────────────────────────────────────────
 
 /**
@@ -299,8 +316,10 @@ export function buildGlobalSearchClause(
 // ─── Grouped View Queries ───────────────────────────────────────────────────
 
 export interface GroupSummaryOptions {
-  /** Table name */
-  table: string;
+  /** Table name (mutually exclusive with `source`) */
+  table?: string;
+  /** Raw SQL subquery source (mutually exclusive with `table`) */
+  source?: string;
   /** Group columns (max 3) */
   grouping: GroupConfig[];
   /** Filter conditions to apply before grouping */
@@ -334,6 +353,7 @@ export function buildGroupSummaryQuery(
 ): ParameterizedQuery {
   const {
     table,
+    source,
     grouping,
     filters = [],
     filterLogic = "and",
@@ -349,7 +369,7 @@ export function buildGroupSummaryQuery(
     throw new Error("buildGroupSummaryQuery requires at least one group");
   }
 
-  const tableName = quoteIdentifier(table);
+  const fromClause = resolveFrom(table, source);
   const { selectColumns, groupBy } = buildGroupByClause(
     grouping,
     allowedColumns,
@@ -397,7 +417,7 @@ export function buildGroupSummaryQuery(
 
   const parts = [
     `SELECT ${selectColumns}`,
-    `FROM ${tableName}`,
+    `FROM ${fromClause}`,
     whereSQL,
     groupBy,
     orderBy,
@@ -415,6 +435,7 @@ export function buildGroupCountQuery(
 ): ParameterizedQuery {
   const {
     table,
+    source,
     grouping,
     filters = [],
     filterLogic = "and",
@@ -427,7 +448,7 @@ export function buildGroupCountQuery(
     throw new Error("buildGroupCountQuery requires at least one group");
   }
 
-  const tableName = quoteIdentifier(table);
+  const fromClause = resolveFrom(table, source);
   const groupCols = grouping.map((g) =>
     quoteIdentifier(g.column, allowedColumns),
   );
@@ -452,7 +473,7 @@ export function buildGroupCountQuery(
   }
 
   const parts = [
-    `SELECT COUNT(*) AS "total" FROM (SELECT 1 FROM ${tableName}`,
+    `SELECT COUNT(*) AS "total" FROM (SELECT 1 FROM ${fromClause}`,
     whereSQL,
     `GROUP BY ${groupCols.join(", ")}`,
     `) AS "_groups"`,
@@ -462,8 +483,10 @@ export function buildGroupCountQuery(
 }
 
 export interface GroupDetailOptions {
-  /** Table name */
-  table: string;
+  /** Table name (mutually exclusive with `source`) */
+  table?: string;
+  /** Raw SQL subquery source (mutually exclusive with `table`) */
+  source?: string;
   /** Values to match for parent groups: [{ column: "department", value: "Engineering" }] */
   groupValues: { column: string; value: unknown }[];
   /** Filter conditions */
@@ -494,6 +517,7 @@ export function buildGroupDetailQuery(
 ): ParameterizedQuery {
   const {
     table,
+    source,
     groupValues,
     filters = [],
     filterLogic = "and",
@@ -507,7 +531,7 @@ export function buildGroupDetailQuery(
     throw new Error("buildGroupDetailQuery requires at least one group value");
   }
 
-  const tableName = quoteIdentifier(table);
+  const fromClause = resolveFrom(table, source);
 
   // Base WHERE from filters
   const where = buildWhereClause(filters, filterLogic, 0, allowedColumns);
@@ -551,7 +575,7 @@ export function buildGroupDetailQuery(
 
   const orderBy = buildOrderByClause(sorting, allowedColumns);
 
-  const parts = [`SELECT *`, `FROM ${tableName}`, whereSQL, orderBy].filter(
+  const parts = [`SELECT *`, `FROM ${fromClause}`, whereSQL, orderBy].filter(
     Boolean,
   );
 
@@ -561,8 +585,11 @@ export function buildGroupDetailQuery(
 // ─── Full Query Builder ─────────────────────────────────────────────────────
 
 export interface QueryOptions {
-  /** Table name to query */
-  table: string;
+  /** Table name to query (mutually exclusive with `source`) */
+  table?: string;
+
+  /** Raw SQL subquery source (mutually exclusive with `table`) */
+  source?: string;
 
   /** Filter conditions */
   filters?: FilterCondition[];
@@ -601,6 +628,7 @@ export interface QueryOptions {
 export function buildQuery(options: QueryOptions): ParameterizedQuery {
   const {
     table,
+    source,
     filters = [],
     filterLogic = "and",
     sorting = [],
@@ -612,7 +640,7 @@ export function buildQuery(options: QueryOptions): ParameterizedQuery {
     searchColumns,
   } = options;
 
-  const tableName = quoteIdentifier(table);
+  const fromClause = resolveFrom(table, source);
 
   // GROUP BY affects SELECT columns
   const { selectColumns, groupBy } = buildGroupByClause(
@@ -656,7 +684,7 @@ export function buildQuery(options: QueryOptions): ParameterizedQuery {
   // Compose
   const parts = [
     `SELECT ${selectColumns}`,
-    `FROM ${tableName}`,
+    `FROM ${fromClause}`,
     whereSQL,
     groupBy,
     orderBy,
@@ -676,6 +704,7 @@ export function buildQuery(options: QueryOptions): ParameterizedQuery {
 export function buildCountQuery(options: QueryOptions): ParameterizedQuery {
   const {
     table,
+    source,
     filters = [],
     filterLogic = "and",
     allowedColumns,
@@ -683,7 +712,7 @@ export function buildCountQuery(options: QueryOptions): ParameterizedQuery {
     searchColumns,
   } = options;
 
-  const tableName = quoteIdentifier(table);
+  const fromClause = resolveFrom(table, source);
   const where = buildWhereClause(filters, filterLogic, 0, allowedColumns);
 
   // Global search clause
@@ -708,7 +737,7 @@ export function buildCountQuery(options: QueryOptions): ParameterizedQuery {
 
   const parts = [
     'SELECT COUNT(*) AS "total"',
-    `FROM ${tableName}`,
+    `FROM ${fromClause}`,
     whereSQL,
   ].filter(Boolean);
 

@@ -41,6 +41,7 @@ export type {
 // Query builder
 export {
   quoteIdentifier,
+  resolveFrom,
   buildWhereClause,
   buildOrderByClause,
   buildGroupByClause,

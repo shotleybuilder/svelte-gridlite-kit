@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   quoteIdentifier,
+  resolveFrom,
   buildWhereClause,
   buildOrderByClause,
   buildGroupByClause,
@@ -813,5 +814,108 @@ describe("buildGroupDetailQuery", () => {
         allowedColumns: ["department", "name"],
       }),
     ).toThrow("Column not found");
+  });
+});
+
+// ─── resolveFrom ────────────────────────────────────────────────────────────
+
+describe("resolveFrom", () => {
+  it("returns quoted table name for table param", () => {
+    expect(resolveFrom("users")).toBe('"users"');
+  });
+
+  it("wraps source as subquery", () => {
+    expect(resolveFrom(undefined, "SELECT * FROM users")).toBe(
+      "(SELECT * FROM users) AS _gridlite_sub",
+    );
+  });
+
+  it("prefers source over table", () => {
+    expect(resolveFrom("users", "SELECT * FROM users")).toBe(
+      "(SELECT * FROM users) AS _gridlite_sub",
+    );
+  });
+
+  it("throws when neither provided", () => {
+    expect(() => resolveFrom()).toThrow("Either `table` or `source`");
+  });
+});
+
+// ─── buildQuery with source ─────────────────────────────────────────────────
+
+describe("buildQuery with source (subquery mode)", () => {
+  it("wraps source as subquery", () => {
+    const result = buildQuery({ source: "SELECT id, name FROM users" });
+    expect(result.sql).toBe(
+      "SELECT * FROM (SELECT id, name FROM users) AS _gridlite_sub",
+    );
+    expect(result.params).toEqual([]);
+  });
+
+  it("applies filters to subquery", () => {
+    const result = buildQuery({
+      source: "SELECT * FROM users",
+      filters: [fc("name", "equals", "Alice")],
+    });
+    expect(result.sql).toBe(
+      'SELECT * FROM (SELECT * FROM users) AS _gridlite_sub WHERE "name" = $1',
+    );
+    expect(result.params).toEqual(["Alice"]);
+  });
+
+  it("applies sorting to subquery", () => {
+    const result = buildQuery({
+      source: "SELECT * FROM users",
+      sorting: [{ column: "name", direction: "desc" }],
+    });
+    expect(result.sql).toBe(
+      'SELECT * FROM (SELECT * FROM users) AS _gridlite_sub ORDER BY "name" DESC',
+    );
+  });
+
+  it("applies pagination to subquery", () => {
+    const result = buildQuery({
+      source: "SELECT * FROM users",
+      page: 1,
+      pageSize: 20,
+    });
+    expect(result.sql).toBe(
+      "SELECT * FROM (SELECT * FROM users) AS _gridlite_sub LIMIT 20 OFFSET 20",
+    );
+  });
+
+  it("applies all clauses to subquery", () => {
+    const result = buildQuery({
+      source:
+        "SELECT e.*, d.name AS dept FROM employees e JOIN departments d ON e.dept_id = d.id",
+      filters: [fc("active", "equals", true)],
+      sorting: [{ column: "name", direction: "asc" }],
+      page: 0,
+      pageSize: 25,
+    });
+    expect(result.sql).toContain("AS _gridlite_sub");
+    expect(result.sql).toContain('WHERE "active" = $1');
+    expect(result.sql).toContain('ORDER BY "name" ASC');
+    expect(result.sql).toContain("LIMIT 25 OFFSET 0");
+    expect(result.params).toEqual([true]);
+  });
+});
+
+describe("buildCountQuery with source", () => {
+  it("counts over subquery", () => {
+    const result = buildCountQuery({ source: "SELECT * FROM users" });
+    expect(result.sql).toBe(
+      'SELECT COUNT(*) AS "total" FROM (SELECT * FROM users) AS _gridlite_sub',
+    );
+  });
+
+  it("counts with filters over subquery", () => {
+    const result = buildCountQuery({
+      source: "SELECT * FROM users",
+      filters: [fc("active", "equals", true)],
+    });
+    expect(result.sql).toContain("AS _gridlite_sub");
+    expect(result.sql).toContain('WHERE "active" = $1');
+    expect(result.params).toEqual([true]);
   });
 });

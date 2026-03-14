@@ -305,38 +305,38 @@
 		let sql: string;
 		let params: unknown[] = [];
 
-		if (query) {
-			// Raw query mode — use as-is
-			sql = query;
-		} else if (table) {
-			if (isGrouped) {
-				// Grouped mode — use two-query strategy
-				await rebuildGroupedQuery();
-				return;
-			}
+		// Determine query source: table name or raw SQL subquery
+		const querySource = query ? { source: query } : table ? { table } : null;
 
-			// Table mode — build query from state
-			const usePagination = features.pagination !== false;
-			const built = buildQuery({
-				table,
-				filters,
-				filterLogic,
-				sorting,
-				page: usePagination ? page : undefined,
-				pageSize: usePagination ? pageSize : undefined,
-				allowedColumns,
-				globalSearch: globalFilter || undefined
-			});
-			sql = built.sql;
-			params = built.params;
-
-			// Get total count for pagination
-			if (usePagination) {
-				await updateTotalCount();
-			}
-		} else {
+		if (!querySource) {
 			error = 'Either `table` or `query` prop is required';
 			return;
+		}
+
+		if (isGrouped) {
+			// Grouped mode — use two-query strategy
+			await rebuildGroupedQuery();
+			return;
+		}
+
+		// Build query from state (works for both table and raw query mode)
+		const usePagination = features.pagination !== false;
+		const built = buildQuery({
+			...querySource,
+			filters,
+			filterLogic,
+			sorting,
+			page: usePagination ? page : undefined,
+			pageSize: usePagination ? pageSize : undefined,
+			allowedColumns,
+			globalSearch: globalFilter || undefined
+		});
+		sql = built.sql;
+		params = built.params;
+
+		// Get total count for pagination
+		if (usePagination) {
+			await updateTotalCount();
 		}
 
 		// Clear grouped state when not grouping
@@ -372,7 +372,8 @@
 	}
 
 	async function rebuildGroupedQuery() {
-		if (!table) return;
+		const querySource = query ? { source: query } : table ? { table } : null;
+		if (!querySource) return;
 
 		try {
 			const usePagination = features.pagination !== false;
@@ -382,7 +383,7 @@
 
 			// 1. Fetch top-level group summaries
 			const summaryQuery = buildGroupSummaryQuery({
-				table,
+				...querySource,
 				grouping: [topGroupConfig],
 				filters,
 				filterLogic,
@@ -401,7 +402,7 @@
 			// 2. Get total group count for pagination
 			if (usePagination) {
 				const countQuery = buildGroupCountQuery({
-					table,
+					...querySource,
 					grouping: [topGroupConfig],
 					filters,
 					filterLogic,
@@ -458,7 +459,8 @@
 	 * If this is the deepest level, fetches detail rows.
 	 */
 	async function fetchGroupChildren(group: GroupRow) {
-		if (!table) return;
+		const querySource = query ? { source: query } : table ? { table } : null;
+		if (!querySource) return;
 
 		const key = groupKey(group);
 		groupLoading = new Set([...groupLoading, key]);
@@ -475,7 +477,7 @@
 				const subGroupConfig = cleanAgg(validGrouping[nextDepth]);
 
 				const summaryQuery = buildGroupSummaryQuery({
-					table,
+					...querySource,
 					grouping: [subGroupConfig],
 					filters: [
 						...filters,
@@ -518,7 +520,7 @@
 			} else {
 				// Deepest level — fetch detail rows
 				const detailQuery = buildGroupDetailQuery({
-					table,
+					...querySource,
 					groupValues: parentValues,
 					filters,
 					filterLogic,
@@ -562,10 +564,11 @@
 	}
 
 	async function updateTotalCount() {
-		if (!table) return;
+		const querySource = query ? { source: query } : table ? { table } : null;
+		if (!querySource) return;
 		try {
 			const countQuery = buildCountQuery({
-				table,
+				...querySource,
 				filters,
 				filterLogic,
 				allowedColumns,
@@ -1113,7 +1116,7 @@
 	{:else if storeState.error}
 		<div class="gridlite-empty">Error: {storeState.error.message}</div>
 	{:else}
-		{#if table && toolbarLayout !== 'aggrid'}
+		{#if toolbarLayout !== 'aggrid'}
 			<div class="gridlite-toolbar">
 				<!-- Custom toolbar content (start) -->
 				<slot name="toolbar-start" />
@@ -1156,7 +1159,8 @@
 					<div class="gridlite-toolbar-filter">
 						<FilterBar
 							{db}
-							{table}
+							table={table ?? ''}
+							source={query ?? ''}
 							{columns}
 							columnConfigs={mergedColumnConfigs}
 							{allowedColumns}
@@ -1302,7 +1306,7 @@
 			</div>
 		{/if}
 
-		{#if table && toolbarLayout === 'aggrid'}
+		{#if toolbarLayout === 'aggrid'}
 			<!-- AG Grid layout: sidebar on right, minimal toolbar on top -->
 			<!-- TODO(#1): aggrid layout is experimental — not production-ready. Needs debugging. -->
 			<div class="gridlite-toolbar gridlite-toolbar-aggrid-top">
@@ -1468,32 +1472,30 @@
 										{getColumnLabel(col)}
 									</span>
 								{/if}
-								{#if table}
-									<button
-										class="gridlite-th-menu-btn"
-										on:click|stopPropagation={() =>
-											(columnMenuOpen = columnMenuOpen === col.name ? null : col.name)}
-										title="Column options"
-										type="button"
-									>
-										<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-										</svg>
-									</button>
-									<ColumnMenu
-										columnName={col.name}
-										isOpen={columnMenuOpen === col.name}
-										{sorting}
-										canSort={features.sorting ?? false}
-										canFilter={features.filtering ?? false}
-										canGroup={features.grouping ?? false}
-										onSort={handleColumnMenuSort}
-										onFilter={handleColumnMenuFilter}
-										onGroup={handleColumnMenuGroup}
-										onHide={handleColumnMenuHide}
-										onClose={() => (columnMenuOpen = null)}
-									/>
-								{/if}
+								<button
+									class="gridlite-th-menu-btn"
+									on:click|stopPropagation={() =>
+										(columnMenuOpen = columnMenuOpen === col.name ? null : col.name)}
+									title="Column options"
+									type="button"
+								>
+									<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+									</svg>
+								</button>
+								<ColumnMenu
+									columnName={col.name}
+									isOpen={columnMenuOpen === col.name}
+									{sorting}
+									canSort={features.sorting ?? false}
+									canFilter={features.filtering ?? false}
+									canGroup={features.grouping ?? false}
+									onSort={handleColumnMenuSort}
+									onFilter={handleColumnMenuFilter}
+									onGroup={handleColumnMenuGroup}
+									onHide={handleColumnMenuHide}
+									onClose={() => (columnMenuOpen = null)}
+								/>
 							</div>
 							{#if features.columnResizing}
 								<!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -1710,6 +1712,7 @@
 						<FilterBar
 							{db}
 							table={table ?? ''}
+							source={query ?? ''}
 							{columns}
 							columnConfigs={mergedColumnConfigs}
 							{allowedColumns}
