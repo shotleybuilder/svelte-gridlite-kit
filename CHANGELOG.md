@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2 — 2026-03-14
+
+### Fixed
+
+- **Grouped mode: ORDER BY on non-grouped columns crashes** — Summary queries now filter `sorting` to only include columns present in `GROUP BY`. Detail rows (expanded groups) keep the full sort order. Fixes Postgres error: `column must appear in the GROUP BY clause or be used in an aggregate function`.
+
 ## 0.4.1 — 2026-03-14
 
 ### Fixed
