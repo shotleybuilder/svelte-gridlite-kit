@@ -372,6 +372,7 @@
 	}
 
 	async function rebuildGroupedQuery() {
+		if (validGrouping.length === 0) return;
 		const querySource = query ? { source: query } : table ? { table } : null;
 		if (!querySource) return;
 

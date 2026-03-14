@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.5 — 2026-03-14
+
+### Fixed
+
+- **Crash when removing all grouping** — `rebuildGroupedQuery()` now guards against empty `validGrouping`, preventing `validGrouping[0] is undefined` error when clearing the GroupBar (#12)
+- **Column resize handles not working** — Added `position: relative` to `.gridlite-th` so resize handles position correctly within their header cell (#11)
+- **Column menu button clipped on narrow columns** — Label now truncates with ellipsis (`min-width: 0; overflow: hidden`) and menu button uses `flex-shrink: 0` to stay visible (#10)
+
 ## 0.4.4 — 2026-03-14
 
 ### Fixed

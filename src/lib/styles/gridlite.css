@@ -32,6 +32,7 @@
 }
 
 .gridlite-th {
+  position: relative;
   background: #f8f9fa;
   border-bottom: 2px solid #dee2e6;
   font-weight: 600;
@@ -752,6 +753,9 @@
 
 .gridlite-th-label {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   cursor: default;
 }
 
@@ -773,6 +777,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   padding: 2px;
   background: none;
   border: none;
