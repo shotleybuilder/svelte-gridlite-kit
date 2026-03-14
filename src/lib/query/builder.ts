@@ -56,7 +56,11 @@ export function quoteIdentifier(
   if (!VALID_IDENTIFIER.test(name)) {
     throw new Error(`Invalid column name: ${JSON.stringify(name)}`);
   }
-  if (allowedColumns && !allowedColumns.includes(name)) {
+  if (
+    allowedColumns &&
+    allowedColumns.length > 0 &&
+    !allowedColumns.includes(name)
+  ) {
     throw new Error(`Column not found: ${JSON.stringify(name)}`);
   }
   return `"${name}"`;

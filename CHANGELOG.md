@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 — 2026-03-14
+
+### Fixed
+
+- **`setFilters`/`setSorting`/`setGrouping` throw before first query result** — `quoteIdentifier()` now skips allowlist validation when `allowedColumns` is empty (e.g. before columns are derived from the first query result in query mode). The regex identifier check still prevents SQL injection.
+
 ## 0.4.0 — 2026-03-14
 
 ### Added

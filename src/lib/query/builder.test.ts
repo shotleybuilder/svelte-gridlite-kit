@@ -52,6 +52,10 @@ describe("quoteIdentifier", () => {
     expect(quoteIdentifier("name", allowed)).toBe('"name"');
     expect(() => quoteIdentifier("email", allowed)).toThrow("Column not found");
   });
+
+  it("skips allowlist validation when allowedColumns is empty", () => {
+    expect(quoteIdentifier("any_column", [])).toBe('"any_column"');
+  });
 });
 
 // ─── buildWhereClause — String operators ────────────────────────────────────
