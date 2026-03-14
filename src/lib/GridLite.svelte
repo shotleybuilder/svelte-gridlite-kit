@@ -381,9 +381,9 @@
 			// Top-level: group by first column only
 			const topGroupConfig = cleanAgg(validGrouping[0]);
 
-			// Filter sorting to only include grouped columns (Postgres rejects ORDER BY on non-GROUP BY columns)
-			const groupedColumnNames = validGrouping.map((g) => g.column);
-			const groupSorting = sorting.filter((s) => groupedColumnNames.includes(s.column));
+			// Filter sorting to only the top-level group column (Postgres rejects ORDER BY on non-GROUP BY columns)
+			const topColumnNames = [topGroupConfig.column];
+			const groupSorting = sorting.filter((s) => topColumnNames.includes(s.column));
 
 			// 1. Fetch top-level group summaries
 			const summaryQuery = buildGroupSummaryQuery({
@@ -480,9 +480,9 @@
 				// There are deeper group levels — fetch sub-group summaries
 				const subGroupConfig = cleanAgg(validGrouping[nextDepth]);
 
-				// Filter sorting to only include grouped columns
-				const groupedColumnNames = validGrouping.map((g) => g.column);
-				const groupSorting = sorting.filter((s) => groupedColumnNames.includes(s.column));
+				// Filter sorting to parent + current level columns only
+				const subColumnNames = validGrouping.slice(0, nextDepth + 1).map((g) => g.column);
+				const groupSorting = sorting.filter((s) => subColumnNames.includes(s.column));
 
 				const summaryQuery = buildGroupSummaryQuery({
 					...querySource,

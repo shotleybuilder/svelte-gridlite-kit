@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3 — 2026-03-14
+
+### Fixed
+
+- **Grouped mode: top-level ORDER BY includes deeper-level group columns** — Follow-up to 0.4.2. Top-level summary queries now filter sorting to only the top-level group column. Sub-group queries filter sorting to parent + current level columns only. Previously, all group level columns were included, causing Postgres errors on multi-level grouping.
+
 ## 0.4.2 — 2026-03-14
 
 ### Fixed
