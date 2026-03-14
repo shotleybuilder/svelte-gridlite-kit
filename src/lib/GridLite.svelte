@@ -452,6 +452,9 @@
 					await fetchGroupChildren(group);
 				}
 			}
+
+			// Unlock the template gate — grouped mode doesn't create a live store
+			storeState = { ...storeState, loading: false };
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		}

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.4 — 2026-03-14
+
+### Fixed
+
+- **Grouped mode: loading state stuck forever with `defaultGrouping`** — `rebuildGroupedQuery()` now sets `storeState.loading = false` on completion. Previously, grouped mode skipped creating a live store, so the loading gate never opened and the template showed "Loading..." indefinitely.
+
 ## 0.4.3 — 2026-03-14
 
 ### Fixed
