@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.9 — 2026-03-27
+
+### Fixed
+
+- **notifyStateChange reports stale columnVisibility** — `notifyStateChange()` now builds `columnVisibility` from the synchronous `columnVisibility` state via `isColumnVisible()` instead of the batched `$: visibleColumns` reactive. Also emits all columns (visible and hidden) rather than only visible ones, so consumers saving view state get accurate visibility data (#15)
+
 ## 0.4.8 — 2026-03-27
 
 ### Fixed

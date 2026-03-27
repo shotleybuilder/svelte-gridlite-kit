@@ -657,7 +657,7 @@
 	function notifyStateChange() {
 		if (onStateChange) {
 			onStateChange({
-				columnVisibility: Object.fromEntries(visibleColumns.map((c) => [c.name, true])),
+				columnVisibility: Object.fromEntries(columns.map((c) => [c.name, isColumnVisible(c.name)])),
 				columnOrder: columnOrder.length > 0 ? columnOrder : orderedColumns.map((c) => c.name),
 				columnSizing,
 				filters,
