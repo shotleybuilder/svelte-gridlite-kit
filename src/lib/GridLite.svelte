@@ -228,6 +228,9 @@
 	// Whether grouping is active
 	$: isGrouped = validGrouping.length > 0;
 
+	// Number of hidden columns (for badge display)
+	$: hiddenColumnCount = columns.length - visibleColumns.length;
+
 	// Columns to show in headers and child rows when grouping — excludes grouped columns
 	$: nonGroupedColumns = isGrouped
 		? orderedColumns.filter((col) => !validGrouping.some((g) => g.column === col.name))
@@ -1158,6 +1161,9 @@
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
 							</svg>
 							<span class="gridlite-btn-label">Columns</span>
+							{#if hiddenColumnCount > 0}
+								<span class="gridlite-columns-badge">{hiddenColumnCount}</span>
+							{/if}
 						</button>
 						<ColumnPicker
 							{columns}

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.10 — 2026-03-27
+
+### Added
+
+- **Hidden column count badge on Columns button** — Shows the number of hidden columns as an indigo badge on the Columns toolbar button, matching the Sort (orange) and Group (green) badge pattern. Badge only appears when columns are hidden (#16)
+
 ## 0.4.9 — 2026-03-27
 
 ### Fixed
