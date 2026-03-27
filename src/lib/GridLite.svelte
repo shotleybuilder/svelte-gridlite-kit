@@ -1448,76 +1448,78 @@
 				<tr class={classNames.tr ?? ''}>
 					{#each (isGrouped ? nonGroupedColumns : orderedColumns) as col}
 						<th
-							class={`gridlite-th gridlite-th-interactive ${classNames.th ?? ''}`}
+							class={`gridlite-th ${classNames.th ?? ''}`}
 							class:dragging={draggedColumnId === col.name}
 							class:drag-over={dragOverColumnId === col.name && draggedColumnId !== col.name}
-							style={features.columnResizing ? `width: ${getColumnWidth(col.name)}px;` : ''}
+							style={features.columnResizing ? `width: ${columnSizing[col.name] ?? config?.columns?.find((c) => c.name === col.name)?.width ?? COL_DEFAULT_WIDTH}px;` : ''}
 							on:dragover={(e) => handleDragOver(e, col.name)}
 							on:drop={(e) => handleDrop(e, col.name)}
 						>
-							<!-- svelte-ignore a11y-no-static-element-interactions -->
-							<div
-								class="gridlite-th-content"
-								draggable={features.columnReordering ?? false}
-								on:dragstart={(e) => handleDragStart(e, col.name)}
-								on:dragend={handleDragEnd}
-								style={features.columnReordering ? 'cursor: grab;' : ''}
-							>
-								{#if editingColumnLabel === col.name}
-									<!-- svelte-ignore a11y-autofocus -->
-									<input
-										class="gridlite-th-label-input"
-										type="text"
-										bind:value={editingLabelValue}
-										on:blur={commitLabelEdit}
-										on:keydown={handleLabelKeydown}
-										on:click|stopPropagation
-										autofocus
-									/>
-								{:else}
-									<!-- svelte-ignore a11y-no-static-element-interactions -->
-									<span
-										class="gridlite-th-label"
-										on:dblclick|stopPropagation={() => startEditingLabel(col.name)}
-										title="Double-click to rename"
-									>
-										{getColumnLabel(col)}
-									</span>
-								{/if}
-								<button
-									class="gridlite-th-menu-btn"
-									on:click|stopPropagation={() =>
-										(columnMenuOpen = columnMenuOpen === col.name ? null : col.name)}
-									title="Column options"
-									type="button"
-								>
-									<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-									</svg>
-								</button>
-								<ColumnMenu
-									columnName={col.name}
-									isOpen={columnMenuOpen === col.name}
-									{sorting}
-									canSort={features.sorting ?? false}
-									canFilter={features.filtering ?? false}
-									canGroup={features.grouping ?? false}
-									onSort={handleColumnMenuSort}
-									onFilter={handleColumnMenuFilter}
-									onGroup={handleColumnMenuGroup}
-									onHide={handleColumnMenuHide}
-									onClose={() => (columnMenuOpen = null)}
-								/>
-							</div>
-							{#if features.columnResizing}
+							<div class="gridlite-th-wrapper">
 								<!-- svelte-ignore a11y-no-static-element-interactions -->
 								<div
-									class="gridlite-resize-handle"
-									class:resizing={resizingColumn === col.name}
-									on:mousedown={(e) => handleResizeStart(e, col.name)}
-									on:touchstart={(e) => handleResizeStart(e, col.name)}
-								/>
-							{/if}
+									class="gridlite-th-content"
+									draggable={features.columnReordering ?? false}
+									on:dragstart={(e) => handleDragStart(e, col.name)}
+									on:dragend={handleDragEnd}
+									style={features.columnReordering ? 'cursor: grab;' : ''}
+								>
+									{#if editingColumnLabel === col.name}
+										<!-- svelte-ignore a11y-autofocus -->
+										<input
+											class="gridlite-th-label-input"
+											type="text"
+											bind:value={editingLabelValue}
+											on:blur={commitLabelEdit}
+											on:keydown={handleLabelKeydown}
+											on:click|stopPropagation
+											autofocus
+										/>
+									{:else}
+										<!-- svelte-ignore a11y-no-static-element-interactions -->
+										<span
+											class="gridlite-th-label"
+											on:dblclick|stopPropagation={() => startEditingLabel(col.name)}
+											title="Double-click to rename"
+										>
+											{getColumnLabel(col)}
+										</span>
+									{/if}
+									<button
+										class="gridlite-th-menu-btn"
+										on:click|stopPropagation={() =>
+											(columnMenuOpen = columnMenuOpen === col.name ? null : col.name)}
+										title="Column options"
+										type="button"
+									>
+										<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+										</svg>
+									</button>
+									<ColumnMenu
+										columnName={col.name}
+										isOpen={columnMenuOpen === col.name}
+										{sorting}
+										canSort={features.sorting ?? false}
+										canFilter={features.filtering ?? false}
+										canGroup={features.grouping ?? false}
+										onSort={handleColumnMenuSort}
+										onFilter={handleColumnMenuFilter}
+										onGroup={handleColumnMenuGroup}
+										onHide={handleColumnMenuHide}
+										onClose={() => (columnMenuOpen = null)}
+									/>
+								</div>
+								{#if features.columnResizing}
+									<!-- svelte-ignore a11y-no-static-element-interactions -->
+									<div
+										class="gridlite-resize-handle"
+										class:resizing={resizingColumn === col.name}
+										on:mousedown={(e) => handleResizeStart(e, col.name)}
+										on:touchstart={(e) => handleResizeStart(e, col.name)}
+									/>
+								{/if}
+							</div>
 						</th>
 					{/each}
 				</tr>

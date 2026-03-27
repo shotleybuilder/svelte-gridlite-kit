@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.6 — 2026-03-27
+
+### Fixed
+
+- **Column resize handles not updating width** — Svelte's reactivity didn't track `columnSizing` changes through the `getColumnWidth()` helper function. Inlined the `columnSizing` lookup directly in the `<th>` style binding so reassignments trigger re-renders. Also added a `gridlite-th-wrapper` div (matching the proven svelte-table-kit pattern) to provide a reliable `position: relative` containing block for the resize handle (#13)
+
 ## 0.4.5 — 2026-03-14
 
 ### Fixed

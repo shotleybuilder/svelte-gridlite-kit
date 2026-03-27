@@ -32,7 +32,6 @@
 }
 
 .gridlite-th {
-  position: relative;
   background: #f8f9fa;
   border-bottom: 2px solid #dee2e6;
   font-weight: 600;
@@ -741,14 +740,18 @@
 
 /* ─── Column Header Interactive ──────────────────────────────────────────── */
 
-.gridlite-th-interactive {
+.gridlite-th-wrapper {
   position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
 }
 
 .gridlite-th-content {
   display: flex;
   align-items: center;
   gap: 4px;
+  overflow: hidden;
 }
 
 .gridlite-th-label {
@@ -791,7 +794,7 @@
     background 0.15s;
 }
 
-.gridlite-th-interactive:hover .gridlite-th-menu-btn {
+.gridlite-th-wrapper:hover .gridlite-th-menu-btn {
   opacity: 1;
 }
 
@@ -815,9 +818,9 @@
 .gridlite-resize-handle {
   position: absolute;
   top: 0;
-  right: -6px;
+  right: -0.375rem;
   height: 100%;
-  width: 12px;
+  width: 0.75rem;
   cursor: col-resize;
   user-select: none;
   touch-action: none;
