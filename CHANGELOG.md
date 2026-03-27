@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.8 — 2026-03-27
+
+### Fixed
+
+- **TypeError when removing all groups** — `rebuildGroupedQuery()` and `fetchGroupChildren()` now snapshot `validGrouping` at call time and re-check after each `await`, preventing stale reactive state from causing `validGrouping[0] is undefined` when grouping is cleared while an async query is in flight (#14)
+
 ## 0.4.7 — 2026-03-27
 
 ### Fixed

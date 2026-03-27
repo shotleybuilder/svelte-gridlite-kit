@@ -372,7 +372,9 @@
 	}
 
 	async function rebuildGroupedQuery() {
-		if (validGrouping.length === 0) return;
+		// Snapshot reactive state — validGrouping may change after awaits
+		const groupingSnapshot = [...validGrouping];
+		if (groupingSnapshot.length === 0) return;
 		const querySource = query ? { source: query } : table ? { table } : null;
 		if (!querySource) return;
 
@@ -380,7 +382,7 @@
 			const usePagination = features.pagination !== false;
 
 			// Top-level: group by first column only
-			const topGroupConfig = cleanAgg(validGrouping[0]);
+			const topGroupConfig = cleanAgg(groupingSnapshot[0]);
 
 			// Filter sorting to only the top-level group column (Postgres rejects ORDER BY on non-GROUP BY columns)
 			const topColumnNames = [topGroupConfig.column];
@@ -404,6 +406,9 @@
 				summaryQuery.params as any[]
 			);
 
+			// Re-check after await — grouping may have been cleared
+			if (validGrouping.length === 0) return;
+
 			// 2. Get total group count for pagination
 			if (usePagination) {
 				const countQuery = buildGroupCountQuery({
@@ -423,7 +428,7 @@
 			}
 
 			// 3. Build GroupRow[] from summary results
-			const topCol = validGrouping[0].column;
+			const topCol = groupingSnapshot[0].column;
 			const newGroupData: GroupRow[] = summaryResult.rows.map((row) => {
 				const values: Record<string, unknown> = { [topCol]: row[topCol] };
 				const newGroup: GroupRow = {
@@ -467,6 +472,8 @@
 	 * If this is the deepest level, fetches detail rows.
 	 */
 	async function fetchGroupChildren(group: GroupRow) {
+		// Snapshot reactive state — validGrouping may change after awaits
+		const groupingSnapshot = [...validGrouping];
 		const querySource = query ? { source: query } : table ? { table } : null;
 		if (!querySource) return;
 
@@ -480,12 +487,12 @@
 				value
 			}));
 
-			if (nextDepth < validGrouping.length) {
+			if (nextDepth < groupingSnapshot.length) {
 				// There are deeper group levels — fetch sub-group summaries
-				const subGroupConfig = cleanAgg(validGrouping[nextDepth]);
+				const subGroupConfig = cleanAgg(groupingSnapshot[nextDepth]);
 
 				// Filter sorting to parent + current level columns only
-				const subColumnNames = validGrouping.slice(0, nextDepth + 1).map((g) => g.column);
+				const subColumnNames = groupingSnapshot.slice(0, nextDepth + 1).map((g) => g.column);
 				const groupSorting = sorting.filter((s) => subColumnNames.includes(s.column));
 
 				const summaryQuery = buildGroupSummaryQuery({
@@ -512,7 +519,7 @@
 					summaryQuery.params as any[]
 				);
 
-				const subCol = validGrouping[nextDepth].column;
+				const subCol = groupingSnapshot[nextDepth].column;
 				const subGroups: GroupRow[] = result.rows.map((row) => {
 					const subValues: Record<string, unknown> = {
 						...group.values,
