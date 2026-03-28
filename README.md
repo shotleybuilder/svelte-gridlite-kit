@@ -184,6 +184,7 @@ src/lib/
 │   └── migrations.ts        # Schema definitions for config tables
 ├── components/
 │   ├── FilterBar.svelte     # Advanced filtering UI
+│   ├── FilterGroup.svelte   # Recursive nested filter group component
 │   ├── GroupBar.svelte      # Multi-level grouping controls
 │   ├── SortBar.svelte       # Sort controls
 │   ├── ColumnMenu.svelte    # Column context menu
