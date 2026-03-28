@@ -73,7 +73,8 @@
 					hire_date DATE NOT NULL,
 					active BOOLEAN DEFAULT true,
 					rating NUMERIC(2, 1),
-					status TEXT DEFAULT 'Active'
+					status TEXT DEFAULT 'Active',
+					skills JSONB
 				)
 			`);
 
@@ -85,6 +86,8 @@
 				'Davis', 'Garcia', 'Martinez', 'Robinson', 'Clark', 'Lewis', 'Walker', 'Hall', 'Allen', 'Young'];
 			const titles = ['Engineer', 'Senior Engineer', 'Lead Engineer', 'Manager', 'Analyst', 'Coordinator',
 				'Director', 'Specialist', 'Associate', 'VP'];
+
+			const allSkills = ['JavaScript', 'TypeScript', 'Python', 'SQL', 'React', 'Svelte', 'Go', 'Rust', 'Leadership', 'Design'];
 
 			const values: string[] = [];
 			for (let i = 0; i < 60; i++) {
@@ -101,13 +104,21 @@
 				const status = statuses[Math.floor(Math.random() * statuses.length)];
 				const email = `${first.toLowerCase()}.${last.toLowerCase()}@example.com`;
 
+				// Build a JSONB multi-select: pick 2-4 random skills as { "Skill": true }
+				const numSkills = 2 + Math.floor(Math.random() * 3);
+				const shuffled = [...allSkills].sort(() => Math.random() - 0.5);
+				const picked = shuffled.slice(0, numSkills);
+				const skillsObj: Record<string, boolean> = {};
+				for (const s of picked) skillsObj[s] = true;
+				const skillsJson = JSON.stringify(skillsObj).replace(/'/g, "''");
+
 				values.push(
-					`('${first} ${last}', '${email}', '${dept}', '${title}', ${salary}, '${year}-${month}-${day}', ${active}, ${rating}, '${status}')`
+					`('${first} ${last}', '${email}', '${dept}', '${title}', ${salary}, '${year}-${month}-${day}', ${active}, ${rating}, '${status}', '${skillsJson}')`
 				);
 			}
 
 			await db.exec(`
-				INSERT INTO employees (name, email, department, title, salary, hire_date, active, rating, status)
+				INSERT INTO employees (name, email, department, title, salary, hire_date, active, rating, status, skills)
 				VALUES ${values.join(',\n')}
 			`);
 
@@ -127,7 +138,7 @@
 
 <main>
 	<h1>Employees Demo</h1>
-	<p>60 rows, 10 columns. Right-click cells for context menu. Click column headers for sort/filter/group. Click rows for detail modal.</p>
+	<p>60 rows, 11 columns (incl. JSONB skills). Right-click cells for context menu. Click column headers for sort/filter/group. Click rows for detail modal.</p>
 
 	<!-- Feature Toggle Controls -->
 	<div class="controls">
