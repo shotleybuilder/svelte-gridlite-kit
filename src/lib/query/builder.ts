@@ -18,7 +18,7 @@ import type {
   ParameterizedQuery,
   AggregateFunction,
 } from "../types.js";
-import { isFilterGroup } from "../types.js";
+import { isFilterGroup, isValidInterval } from "../types.js";
 
 // ─── Source Resolution ──────────────────────────────────────────────────────
 
@@ -93,6 +93,7 @@ export function buildWhereClause(
       c.field &&
       (c.operator === "is_empty" ||
         c.operator === "is_not_empty" ||
+        c.valueColumn ||
         (c.value !== null && c.value !== undefined && c.value !== "")),
   );
 
@@ -106,7 +107,12 @@ export function buildWhereClause(
 
   for (const condition of valid) {
     const col = quoteIdentifier(condition.field, allowedColumns);
-    const result = buildConditionSQL(col, condition, paramIndex);
+    const result = buildConditionSQL(
+      col,
+      condition,
+      paramIndex,
+      allowedColumns,
+    );
     parts.push(result.sql);
     params.push(...result.params);
     paramIndex += result.params.length;
@@ -119,14 +125,65 @@ export function buildWhereClause(
 }
 
 /**
+ * Build a comparison SQL fragment for column-to-column mode.
+ * Maps the operator to the appropriate SQL comparison.
+ */
+function buildComparisonSQL(
+  lhs: string,
+  operator: FilterCondition["operator"],
+  rhs: string,
+): ParameterizedQuery {
+  switch (operator) {
+    case "equals":
+      return { sql: `${lhs} = ${rhs}`, params: [] };
+    case "not_equals":
+      return { sql: `${lhs} != ${rhs}`, params: [] };
+    case "greater_than":
+    case "is_after":
+      return { sql: `${lhs} > ${rhs}`, params: [] };
+    case "less_than":
+    case "is_before":
+      return { sql: `${lhs} < ${rhs}`, params: [] };
+    case "greater_or_equal":
+      return { sql: `${lhs} >= ${rhs}`, params: [] };
+    case "less_or_equal":
+      return { sql: `${lhs} <= ${rhs}`, params: [] };
+    default:
+      throw new Error(
+        `Operator "${operator}" does not support column-to-column comparison`,
+      );
+  }
+}
+
+/**
  * Build SQL for a single filter condition.
+ *
+ * When `condition.valueColumn` is set, compares against another column
+ * instead of a parameterized literal value.
  */
 function buildConditionSQL(
   quotedCol: string,
   condition: FilterCondition,
   paramIndex: number,
+  allowedColumns?: string[],
 ): ParameterizedQuery {
   const p = (offset: number = 0) => `$${paramIndex + offset}`;
+
+  // Column-to-column comparison mode
+  if (condition.valueColumn) {
+    const rhsCol = quoteIdentifier(condition.valueColumn, allowedColumns);
+    let rhs = rhsCol;
+    if (condition.intervalOffset) {
+      const trimmed = condition.intervalOffset.trim();
+      if (!isValidInterval(trimmed)) {
+        throw new Error(
+          `Invalid interval: ${JSON.stringify(condition.intervalOffset)}`,
+        );
+      }
+      rhs = `${rhsCol} + INTERVAL '${trimmed}'`;
+    }
+    return buildComparisonSQL(quotedCol, condition.operator, rhs);
+  }
 
   switch (condition.operator) {
     // String operators
@@ -216,6 +273,7 @@ function isValidLeaf(c: FilterCondition): boolean {
     c.field &&
     (c.operator === "is_empty" ||
       c.operator === "is_not_empty" ||
+      c.valueColumn ||
       (c.value !== null && c.value !== undefined && c.value !== ""))
   );
 }
@@ -277,7 +335,7 @@ function buildNodeList(
       // Leaf condition
       if (!isValidLeaf(node)) continue;
       const col = quoteIdentifier(node.field, allowedColumns);
-      const result = buildConditionSQL(col, node, paramIndex);
+      const result = buildConditionSQL(col, node, paramIndex, allowedColumns);
       parts.push(result.sql);
       params.push(...result.params);
       paramIndex += result.params.length;

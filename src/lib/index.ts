@@ -40,7 +40,7 @@ export type {
   ToolbarLayout,
 } from "./types.js";
 
-export { isFilterGroup } from "./types.js";
+export { isFilterGroup, isValidInterval } from "./types.js";
 
 // Query builder
 export {

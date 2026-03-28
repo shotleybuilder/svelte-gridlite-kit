@@ -252,6 +252,7 @@
 					node.field &&
 					(node.operator === 'is_empty' ||
 						node.operator === 'is_not_empty' ||
+						node.valueColumn ||
 						(node.value !== null && node.value !== undefined && node.value !== ''))
 				) {
 					count++;

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.13 — 2026-03-28
+
+### Added
+
+- **Column-to-column comparison with interval offset** — Filter conditions can now compare one column against another instead of a literal value. New optional `valueColumn` and `intervalOffset` fields on `FilterCondition` enable expressions like `WHERE "updated_at" > "created_at" + INTERVAL '6 months'`. The FilterCondition UI adds a toggle button to switch between literal value and column comparison modes; column mode shows a fuzzy-search column picker for the RHS and an optional interval offset input for date-compatible operators. Interval strings are validated against a strict regex pattern to prevent SQL injection. The `valueColumn` is validated through `quoteIdentifier()` with the same allowedColumns check as the LHS field. Fully backwards-compatible — existing conditions without `valueColumn` behave unchanged (#19)
+
 ## 0.4.12 — 2026-03-28
 
 ### Added

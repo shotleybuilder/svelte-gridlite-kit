@@ -14,6 +14,7 @@
 		ColumnDataType,
 		ColumnConfig
 	} from '../types.js';
+	import { isValidInterval } from '../types.js';
 	import { fuzzyMatch, highlightMatches } from '../utils/fuzzy.js';
 	import { getOperatorsForType } from '../utils/filters.js';
 	import { onMount, tick } from 'svelte';
@@ -26,6 +27,9 @@
 	export let onUpdate: (condition: FilterCondition) => void;
 	export let onRemove: () => void;
 
+	// Value mode: 'value' = literal input (default), 'column' = compare against another column
+	$: valueMode = condition.valueColumn ? 'column' : 'value';
+
 	// Fuzzy search state for field picker
 	let searchTerm = '';
 	let showDropdown = false;
@@ -33,16 +37,42 @@
 	let searchInputRef: HTMLInputElement;
 	let dropdownRef: HTMLDivElement;
 
+	// RHS column picker state (for column comparison mode)
+	let rhsSearchTerm = '';
+	let showRhsDropdown = false;
+	let rhsHighlightedIndex = 0;
+	let rhsSearchInputRef: HTMLInputElement;
+	let rhsDropdownRef: HTMLDivElement;
+
 	// Value suggestions state
 	let showValueSuggestions = false;
 	let valueSuggestionIndex = 0;
 	let valueInputRef: HTMLInputElement;
 	let valueSuggestionsRef: HTMLDivElement;
 
+	// Operators that support column-to-column comparison
+	const COLUMN_COMPARISON_OPERATORS: FilterOperator[] = [
+		'equals', 'not_equals',
+		'greater_than', 'less_than', 'greater_or_equal', 'less_or_equal',
+		'is_before', 'is_after'
+	];
+
+	// Operators where interval offset makes sense (date-compatible comparisons)
+	const INTERVAL_OPERATORS: FilterOperator[] = [
+		'greater_than', 'less_than', 'greater_or_equal', 'less_or_equal',
+		'is_before', 'is_after'
+	];
+
+	$: supportsColumnComparison = COLUMN_COMPARISON_OPERATORS.includes(condition.operator);
+	$: supportsInterval = INTERVAL_OPERATORS.includes(condition.operator);
+
 	onMount(() => {
 		function handleClickOutside(event: MouseEvent) {
 			if (dropdownRef && !dropdownRef.contains(event.target as Node)) {
 				showDropdown = false;
+			}
+			if (rhsDropdownRef && !rhsDropdownRef.contains(event.target as Node)) {
+				showRhsDropdown = false;
 			}
 			if (valueSuggestionsRef && !valueSuggestionsRef.contains(event.target as Node)) {
 				showValueSuggestions = false;
@@ -156,6 +186,48 @@
 	$: if (filteredValueSuggestions) {
 		valueSuggestionIndex = 0;
 	}
+
+	// ─── RHS column search/filter (column comparison mode) ───────────────────
+
+	$: rhsSelectedColumn = condition.valueColumn
+		? columns.find((c) => c.name === condition.valueColumn)
+		: null;
+
+	$: rhsSelectedColumnLabel = (() => {
+		if (!condition.valueColumn) return '';
+		return rhsSelectedColumn ? getColumnLabel(rhsSelectedColumn) : condition.valueColumn;
+	})();
+
+	$: filteredRhsColumns = (() => {
+		if (!rhsSearchTerm.trim()) {
+			return columns.map((col) => ({
+				column: col,
+				matchedIndices: [] as number[],
+				score: 0
+			}));
+		}
+
+		const results: { column: ColumnMetadata; matchedIndices: number[]; score: number }[] = [];
+		for (const col of columns) {
+			const label = getColumnLabel(col);
+			const match = fuzzyMatch(rhsSearchTerm, label);
+			if (match) {
+				results.push({ column: col, matchedIndices: match.matchedIndices, score: match.score });
+			}
+		}
+		return results.sort((a, b) => b.score - a.score);
+	})();
+
+	$: if (filteredRhsColumns) {
+		rhsHighlightedIndex = 0;
+	}
+
+	// ─── Interval offset validation ──────────────────────────────────────────
+
+	$: intervalError = (() => {
+		if (!condition.intervalOffset || !condition.intervalOffset.trim()) return '';
+		return isValidInterval(condition.intervalOffset) ? '' : 'Invalid interval (e.g. "6 months")';
+	})();
 
 	// ─── Event handlers ───────────────────────────────────────────────────────
 
@@ -276,6 +348,75 @@
 			highlighted.scrollIntoView({ block: 'nearest' });
 		}
 	}
+
+	// ─── Column comparison mode handlers ──────────────────────────────────────
+
+	function toggleValueMode() {
+		if (valueMode === 'value') {
+			// Switch to column mode — clear literal value, set valueColumn
+			onUpdate({ ...condition, value: '', valueColumn: '', intervalOffset: undefined });
+		} else {
+			// Switch to value mode — clear valueColumn/intervalOffset, restore literal value
+			onUpdate({ ...condition, valueColumn: undefined, intervalOffset: undefined, value: '' });
+		}
+	}
+
+	function selectRhsColumn(col: ColumnMetadata) {
+		onUpdate({ ...condition, valueColumn: col.name });
+		showRhsDropdown = false;
+		rhsSearchTerm = '';
+	}
+
+	function openRhsDropdown() {
+		showRhsDropdown = true;
+		rhsSearchTerm = '';
+		rhsHighlightedIndex = 0;
+		tick().then(() => {
+			rhsSearchInputRef?.focus();
+		});
+	}
+
+	function handleRhsSearchKeydown(event: KeyboardEvent) {
+		switch (event.key) {
+			case 'ArrowDown':
+				event.preventDefault();
+				rhsHighlightedIndex = Math.min(rhsHighlightedIndex + 1, filteredRhsColumns.length - 1);
+				scrollToHighlightedRhs();
+				break;
+			case 'ArrowUp':
+				event.preventDefault();
+				rhsHighlightedIndex = Math.max(rhsHighlightedIndex - 1, 0);
+				scrollToHighlightedRhs();
+				break;
+			case 'Enter':
+				event.preventDefault();
+				if (filteredRhsColumns[rhsHighlightedIndex]) {
+					selectRhsColumn(filteredRhsColumns[rhsHighlightedIndex].column);
+				}
+				break;
+			case 'Escape':
+				event.preventDefault();
+				showRhsDropdown = false;
+				rhsSearchTerm = '';
+				break;
+			case 'Tab':
+				showRhsDropdown = false;
+				break;
+		}
+	}
+
+	async function scrollToHighlightedRhs() {
+		await tick();
+		const highlighted = rhsDropdownRef?.querySelector('.field-option.highlighted');
+		if (highlighted) {
+			highlighted.scrollIntoView({ block: 'nearest' });
+		}
+	}
+
+	function handleIntervalChange(event: Event) {
+		const intervalOffset = (event.target as HTMLInputElement).value;
+		onUpdate({ ...condition, intervalOffset: intervalOffset || undefined });
+	}
 </script>
 
 <div class="filter-condition">
@@ -344,100 +485,199 @@
 		{/each}
 	</select>
 
-	<div class="value-input-wrapper" bind:this={valueSuggestionsRef}>
-		{#if columnDataType === 'boolean'}
-			<select
-				class="value-input"
-				value={condition.value || ''}
-				on:change={handleValueChange}
-				disabled={valueDisabled}
-			>
-				<option value="">Select...</option>
-				<option value="true">True</option>
-				<option value="false">False</option>
-			</select>
-		{:else if columnDataType === 'select' && selectOptions.length > 0}
-			<select
-				class="value-input"
-				value={condition.value || ''}
-				on:change={handleValueChange}
-				disabled={valueDisabled}
-			>
-				<option value="">Select...</option>
-				{#each selectOptions as opt}
-					<option value={opt.value}>{opt.label}</option>
-				{/each}
-			</select>
-		{:else if columnDataType === 'date'}
-			<input
-				bind:this={valueInputRef}
-				type="date"
-				class="value-input"
-				value={condition.value || ''}
-				on:input={handleValueChange}
-				disabled={valueDisabled}
-			/>
-		{:else if columnDataType === 'number'}
-			<input
-				bind:this={valueInputRef}
-				type="number"
-				class="value-input"
-				value={condition.value || ''}
-				on:input={handleValueChange}
-				disabled={valueDisabled}
-				placeholder={valueDisabled ? 'N/A' : numericRange ? `${numericRange.min} - ${numericRange.max}` : 'Enter number...'}
-			/>
-			{#if numericRange && !valueDisabled}
-				<div class="numeric-range-hint">
-					Range: {numericRange.min} - {numericRange.max}
-				</div>
+	{#if !valueDisabled && supportsColumnComparison}
+		<button
+			class="value-mode-toggle"
+			class:column-mode={valueMode === 'column'}
+			on:click={toggleValueMode}
+			type="button"
+			title={valueMode === 'value' ? 'Switch to column comparison' : 'Switch to literal value'}
+		>
+			{#if valueMode === 'value'}
+				<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+				</svg>
+			{:else}
+				<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
+				</svg>
 			{/if}
-		{:else}
-			<input
-				bind:this={valueInputRef}
-				type="text"
-				class="value-input"
-				value={condition.value || ''}
-				on:input={handleValueChange}
-				on:focus={handleValueFocus}
-				on:keydown={handleValueKeydown}
-				disabled={valueDisabled}
-				placeholder={valueDisabled ? 'N/A' : 'Enter value...'}
-				autocomplete="off"
-			/>
+		</button>
+	{/if}
 
-			{#if showValueSuggestions && filteredValueSuggestions.length > 0}
-				<div class="value-suggestions">
-					{#each filteredValueSuggestions as { value, matchedIndices }, i}
-						<button
-							class="suggestion-option"
-							class:highlighted={i === valueSuggestionIndex}
-							on:click={() => selectValueSuggestion(value)}
-							on:mouseenter={() => (valueSuggestionIndex = i)}
-							type="button"
-						>
-							{#if matchedIndices.length > 0}
-								{#each highlightMatches(value, matchedIndices) as segment}
-									{#if segment.isMatch}
-										<mark class="match-highlight">{segment.text}</mark>
-									{:else}
-										{segment.text}
-									{/if}
-								{/each}
-							{:else}
-								{value}
-							{/if}
-						</button>
-					{/each}
-					{#if columnValues.length > 50}
-						<div class="suggestions-overflow">
-							and {columnValues.length - 50} more...
+	{#if valueMode === 'column' && supportsColumnComparison}
+		<!-- Column comparison mode: RHS column picker + optional interval -->
+		<div class="column-compare-wrapper">
+			<div class="rhs-field-picker-wrapper" bind:this={rhsDropdownRef}>
+				<button
+					class="field-picker-trigger"
+					class:has-value={condition.valueColumn}
+					on:click={openRhsDropdown}
+					type="button"
+				>
+					<span class="field-picker-text">
+						{rhsSelectedColumnLabel || 'Compare column...'}
+					</span>
+					<svg class="chevron-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+					</svg>
+				</button>
+
+				{#if showRhsDropdown}
+					<div class="field-dropdown">
+						<div class="field-search-wrapper">
+							<input
+								bind:this={rhsSearchInputRef}
+								type="text"
+								class="field-search"
+								placeholder="Search fields..."
+								bind:value={rhsSearchTerm}
+								on:keydown={handleRhsSearchKeydown}
+							/>
 						</div>
-					{/if}
-				</div>
+
+						<div class="field-options">
+							{#each filteredRhsColumns as { column, matchedIndices }, i}
+								{@const label = getColumnLabel(column)}
+								<button
+									class="field-option"
+									class:highlighted={i === rhsHighlightedIndex}
+									class:selected={column.name === condition.valueColumn}
+									on:click={() => selectRhsColumn(column)}
+									on:mouseenter={() => (rhsHighlightedIndex = i)}
+									type="button"
+								>
+									{#if matchedIndices.length > 0}
+										{#each highlightMatches(label, matchedIndices) as segment}
+											{#if segment.isMatch}
+												<mark class="match-highlight">{segment.text}</mark>
+											{:else}
+												{segment.text}
+											{/if}
+										{/each}
+									{:else}
+										{label}
+									{/if}
+								</button>
+							{:else}
+								<div class="no-results">No matching fields</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
+			</div>
+
+			{#if supportsInterval}
+				<input
+					type="text"
+					class="interval-input"
+					class:has-error={!!intervalError}
+					value={condition.intervalOffset || ''}
+					on:input={handleIntervalChange}
+					placeholder="+ offset (e.g. 6 months)"
+				/>
+				{#if intervalError}
+					<div class="interval-error">{intervalError}</div>
+				{/if}
 			{/if}
-		{/if}
-	</div>
+		</div>
+	{:else}
+		<!-- Literal value mode (default) -->
+		<div class="value-input-wrapper" bind:this={valueSuggestionsRef}>
+			{#if columnDataType === 'boolean'}
+				<select
+					class="value-input"
+					value={condition.value || ''}
+					on:change={handleValueChange}
+					disabled={valueDisabled}
+				>
+					<option value="">Select...</option>
+					<option value="true">True</option>
+					<option value="false">False</option>
+				</select>
+			{:else if columnDataType === 'select' && selectOptions.length > 0}
+				<select
+					class="value-input"
+					value={condition.value || ''}
+					on:change={handleValueChange}
+					disabled={valueDisabled}
+				>
+					<option value="">Select...</option>
+					{#each selectOptions as opt}
+						<option value={opt.value}>{opt.label}</option>
+					{/each}
+				</select>
+			{:else if columnDataType === 'date'}
+				<input
+					bind:this={valueInputRef}
+					type="date"
+					class="value-input"
+					value={condition.value || ''}
+					on:input={handleValueChange}
+					disabled={valueDisabled}
+				/>
+			{:else if columnDataType === 'number'}
+				<input
+					bind:this={valueInputRef}
+					type="number"
+					class="value-input"
+					value={condition.value || ''}
+					on:input={handleValueChange}
+					disabled={valueDisabled}
+					placeholder={valueDisabled ? 'N/A' : numericRange ? `${numericRange.min} - ${numericRange.max}` : 'Enter number...'}
+				/>
+				{#if numericRange && !valueDisabled}
+					<div class="numeric-range-hint">
+						Range: {numericRange.min} - {numericRange.max}
+					</div>
+				{/if}
+			{:else}
+				<input
+					bind:this={valueInputRef}
+					type="text"
+					class="value-input"
+					value={condition.value || ''}
+					on:input={handleValueChange}
+					on:focus={handleValueFocus}
+					on:keydown={handleValueKeydown}
+					disabled={valueDisabled}
+					placeholder={valueDisabled ? 'N/A' : 'Enter value...'}
+					autocomplete="off"
+				/>
+
+				{#if showValueSuggestions && filteredValueSuggestions.length > 0}
+					<div class="value-suggestions">
+						{#each filteredValueSuggestions as { value, matchedIndices }, i}
+							<button
+								class="suggestion-option"
+								class:highlighted={i === valueSuggestionIndex}
+								on:click={() => selectValueSuggestion(value)}
+								on:mouseenter={() => (valueSuggestionIndex = i)}
+								type="button"
+							>
+								{#if matchedIndices.length > 0}
+									{#each highlightMatches(value, matchedIndices) as segment}
+										{#if segment.isMatch}
+											<mark class="match-highlight">{segment.text}</mark>
+										{:else}
+											{segment.text}
+										{/if}
+									{/each}
+								{:else}
+									{value}
+								{/if}
+							</button>
+						{/each}
+						{#if columnValues.length > 50}
+							<div class="suggestions-overflow">
+								and {columnValues.length - 50} more...
+							</div>
+						{/if}
+					</div>
+				{/if}
+			{/if}
+		</div>
+	{/if}
 
 	<button class="remove-btn" on:click={onRemove} title="Remove condition" type="button">
 		<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -682,6 +922,88 @@
 		border: 1px solid #e5e7eb;
 		border-radius: 0.375rem;
 		text-align: center;
+	}
+
+	/* Value mode toggle button */
+	.value-mode-toggle {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.75rem;
+		height: 1.75rem;
+		padding: 0.25rem;
+		background: white;
+		border: 1px solid #d1d5db;
+		border-radius: 0.25rem;
+		color: #6b7280;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+
+	.value-mode-toggle:hover {
+		border-color: #9ca3af;
+		color: #374151;
+	}
+
+	.value-mode-toggle.column-mode {
+		background: #eef2ff;
+		border-color: #818cf8;
+		color: #4f46e5;
+	}
+
+	/* Column comparison wrapper */
+	.column-compare-wrapper {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		gap: 0.375rem;
+		min-width: 0;
+	}
+
+	.rhs-field-picker-wrapper {
+		position: relative;
+		flex: 1;
+		min-width: 120px;
+	}
+
+	.interval-input {
+		flex: 0 0 auto;
+		width: 160px;
+		padding: 0.375rem 0.75rem;
+		font-size: 0.8125rem;
+		border: 1px solid #d1d5db;
+		border-radius: 0.375rem;
+		background: white;
+		color: #374151;
+	}
+
+	.interval-input::placeholder {
+		color: #9ca3af;
+		font-size: 0.75rem;
+	}
+
+	.interval-input:focus {
+		outline: none;
+		border-color: #3b82f6;
+		box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+	}
+
+	.interval-input.has-error {
+		border-color: #ef4444;
+	}
+
+	.interval-input.has-error:focus {
+		box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+	}
+
+	.interval-error {
+		position: absolute;
+		bottom: -1.25rem;
+		right: 0;
+		font-size: 0.6875rem;
+		color: #ef4444;
+		white-space: nowrap;
 	}
 
 	.remove-btn {

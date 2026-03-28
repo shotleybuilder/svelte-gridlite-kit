@@ -32,6 +32,23 @@ function fc(
   return { id: `test-${field}-${operator}`, field, operator, value };
 }
 
+/** Helper for column-comparison conditions */
+function fcc(
+  field: string,
+  operator: FilterCondition["operator"],
+  valueColumn: string,
+  intervalOffset?: string,
+): FilterCondition {
+  return {
+    id: `test-${field}-${operator}-col`,
+    field,
+    operator,
+    value: "",
+    valueColumn,
+    intervalOffset,
+  };
+}
+
 // ─── quoteIdentifier ────────────────────────────────────────────────────────
 
 describe("quoteIdentifier", () => {
@@ -1126,5 +1143,134 @@ describe("buildWhereClauseFromNodes", () => {
       `WHERE "active" = $1 AND (("email" IS NULL OR "email" = '') OR "name" ILIKE '%' || $2 || '%')`,
     );
     expect(result.params).toEqual([true, "test"]);
+  });
+});
+
+// ─── Column-to-Column Comparison ────────────────────────────────────────────
+
+describe("buildWhereClause — column comparison", () => {
+  const allowed = ["a", "b", "c", "created_at", "updated_at"];
+
+  it("column equals — no params consumed", () => {
+    const result = buildWhereClause(
+      [fcc("a", "equals", "b")],
+      "and",
+      0,
+      allowed,
+    );
+    expect(result.sql).toBe('WHERE "a" = "b"');
+    expect(result.params).toEqual([]);
+  });
+
+  it("column greater_than", () => {
+    const result = buildWhereClause(
+      [fcc("a", "greater_than", "b")],
+      "and",
+      0,
+      allowed,
+    );
+    expect(result.sql).toBe('WHERE "a" > "b"');
+    expect(result.params).toEqual([]);
+  });
+
+  it("column less_than", () => {
+    const result = buildWhereClause(
+      [fcc("a", "less_than", "b")],
+      "and",
+      0,
+      allowed,
+    );
+    expect(result.sql).toBe('WHERE "a" < "b"');
+    expect(result.params).toEqual([]);
+  });
+
+  it("column with interval offset", () => {
+    const result = buildWhereClause(
+      [fcc("updated_at", "is_after", "created_at", "6 months")],
+      "and",
+      0,
+      allowed,
+    );
+    expect(result.sql).toBe(
+      `WHERE "updated_at" > "created_at" + INTERVAL '6 months'`,
+    );
+    expect(result.params).toEqual([]);
+  });
+
+  it("column comparison mixed with literal — params numbered correctly", () => {
+    const conditions: FilterCondition[] = [
+      fc("a", "equals", "hello"),
+      fcc("b", "greater_than", "c"),
+    ];
+    const result = buildWhereClause(conditions, "and", 0, allowed);
+    expect(result.sql).toBe('WHERE "a" = $1 AND "b" > "c"');
+    expect(result.params).toEqual(["hello"]);
+  });
+
+  it("validates valueColumn against allowedColumns", () => {
+    expect(() =>
+      buildWhereClause([fcc("a", "equals", "nonexistent")], "and", 0, allowed),
+    ).toThrow("Column not found");
+  });
+
+  it("rejects SQL injection in valueColumn", () => {
+    expect(() =>
+      buildWhereClause(
+        [fcc("a", "equals", "b; DROP TABLE users")],
+        "and",
+        0,
+        allowed,
+      ),
+    ).toThrow("Invalid column name");
+  });
+
+  it("rejects invalid interval string", () => {
+    expect(() =>
+      buildWhereClause(
+        [fcc("a", "is_after", "b", "6 months; DROP TABLE")],
+        "and",
+        0,
+        allowed,
+      ),
+    ).toThrow("Invalid interval");
+  });
+
+  it("accepts various valid intervals", () => {
+    for (const interval of [
+      "1 day",
+      "12 months",
+      "2 years",
+      "30 seconds",
+      "1 hour",
+    ]) {
+      const result = buildWhereClause(
+        [fcc("a", "greater_than", "b", interval)],
+        "and",
+        0,
+        allowed,
+      );
+      expect(result.sql).toBe(`WHERE "a" > "b" + INTERVAL '${interval}'`);
+      expect(result.params).toEqual([]);
+    }
+  });
+
+  it("intervalOffset without valueColumn is ignored — falls back to literal", () => {
+    const condition: FilterCondition = {
+      id: "test-interval-no-col",
+      field: "a",
+      operator: "greater_than",
+      value: 42,
+      intervalOffset: "6 months",
+    };
+    const result = buildWhereClause([condition], "and", 0, allowed);
+    // No valueColumn → literal comparison, intervalOffset ignored
+    expect(result.sql).toBe('WHERE "a" > $1');
+    expect(result.params).toEqual([42]);
+  });
+
+  it("unsupported operator for column comparison throws", () => {
+    expect(() =>
+      buildWhereClause([fcc("a", "contains", "b")], "and", 0, allowed),
+    ).toThrow("does not support column-to-column comparison");
   });
 });

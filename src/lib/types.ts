@@ -142,6 +142,17 @@ export interface FilterCondition {
   field: string;
   operator: FilterOperator;
   value: unknown;
+  /** Compare against another column instead of a literal value */
+  valueColumn?: string;
+  /** Interval offset added to valueColumn for date comparisons, e.g. "6 months" */
+  intervalOffset?: string;
+}
+
+const VALID_INTERVAL = /^\d+\s+(second|minute|hour|day|week|month|year)s?$/i;
+
+/** Validate an interval string against a safe pattern (prevents SQL injection) */
+export function isValidInterval(s: string): boolean {
+  return VALID_INTERVAL.test(s.trim());
 }
 
 export type FilterOperator =
