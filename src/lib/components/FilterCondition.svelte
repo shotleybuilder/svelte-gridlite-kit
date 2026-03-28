@@ -679,16 +679,7 @@
 		</div>
 	{/if}
 
-	<button class="remove-btn" on:click={onRemove} title="Remove condition" type="button">
-		<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-			<path
-				stroke-linecap="round"
-				stroke-linejoin="round"
-				stroke-width="2"
-				d="M6 18L18 6M6 6l12 12"
-			/>
-		</svg>
-	</button>
+	<button class="remove-btn" on:click={onRemove} title="Remove condition" type="button">×</button>
 </div>
 
 <style>
@@ -699,12 +690,14 @@
 		padding: 0.5rem;
 		background: #f9fafb;
 		border-radius: 0.375rem;
+		min-width: 0;
+		overflow: hidden;
 	}
 
 	.field-picker-wrapper {
 		position: relative;
 		flex: 1;
-		min-width: 150px;
+		min-width: 0;
 	}
 
 	.field-picker-trigger {
@@ -720,6 +713,7 @@
 		background: white;
 		cursor: pointer;
 		transition: border-color 0.15s;
+		box-sizing: border-box;
 	}
 
 	.field-picker-trigger:hover {
@@ -840,26 +834,28 @@
 		border: 1px solid #d1d5db;
 		border-radius: 0.375rem;
 		background: white;
+		box-sizing: border-box;
 	}
 
 	.operator-select {
 		flex: 0.8;
-		min-width: 100px;
+		min-width: 0;
 	}
 
 	.value-input-wrapper {
 		position: relative;
 		flex: 1;
-		min-width: 120px;
+		min-width: 0;
 	}
 
 	.value-input-wrapper .value-input {
 		width: 100%;
+		box-sizing: border-box;
 	}
 
 	.value-input {
 		flex: 1;
-		min-width: 120px;
+		min-width: 0;
 	}
 
 	.value-input:disabled {
@@ -1007,23 +1003,18 @@
 	}
 
 	.remove-btn {
-		flex-shrink: 0;
-		padding: 0.375rem;
+		flex: 0 0 auto;
+		padding: 0.25rem;
 		background: none;
 		border: none;
+		font-size: 1.125rem;
+		line-height: 1;
 		color: #6b7280;
 		cursor: pointer;
-		border-radius: 0.25rem;
-		transition: all 0.2s;
+		transition: color 0.15s;
 	}
 
 	.remove-btn:hover {
-		background: #fee2e2;
 		color: #dc2626;
-	}
-
-	.icon {
-		width: 1rem;
-		height: 1rem;
 	}
 </style>

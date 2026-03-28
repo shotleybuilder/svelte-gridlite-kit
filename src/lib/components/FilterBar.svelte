@@ -459,6 +459,7 @@
 		left: 0;
 		z-index: 20;
 		min-width: 600px;
+		max-width: calc(100vw - 2rem);
 		padding: 1rem;
 		background: white;
 		border: 1px solid #e5e7eb;
@@ -546,6 +547,7 @@
 
 	.condition-wrapper {
 		flex: 1;
+		min-width: 0;
 		display: flex;
 		flex-direction: column;
 	}

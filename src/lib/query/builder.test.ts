@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import {
   quoteIdentifier,
   resolveFrom,
@@ -123,13 +123,15 @@ describe("buildWhereClause — string operators", () => {
 
   it("is_empty (no params)", () => {
     const result = buildWhereClause([fc("name", "is_empty")]);
-    expect(result.sql).toBe(`WHERE ("name" IS NULL OR "name" = '')`);
+    expect(result.sql).toBe(`WHERE ("name" IS NULL OR "name"::text = '')`);
     expect(result.params).toEqual([]);
   });
 
   it("is_not_empty (no params)", () => {
     const result = buildWhereClause([fc("name", "is_not_empty")]);
-    expect(result.sql).toBe(`WHERE ("name" IS NOT NULL AND "name" != '')`);
+    expect(result.sql).toBe(
+      `WHERE ("name" IS NOT NULL AND "name"::text != '')`,
+    );
     expect(result.params).toEqual([]);
   });
 });
@@ -187,7 +189,7 @@ describe("buildWhereClause — date operators", () => {
 describe("buildWhereClause — JSONB operators", () => {
   it("jsonb_has_key", () => {
     const result = buildWhereClause([fc("data", "jsonb_has_key", "Making")]);
-    expect(result.sql).toBe('WHERE "data" ? $1');
+    expect(result.sql).toBe('WHERE "data" ? $1::text');
     expect(result.params).toEqual(["Making"]);
   });
 
@@ -195,7 +197,7 @@ describe("buildWhereClause — JSONB operators", () => {
     const result = buildWhereClause([
       fc("data", "jsonb_not_has_key", "Making"),
     ]);
-    expect(result.sql).toBe('WHERE NOT ("data" ? $1)');
+    expect(result.sql).toBe('WHERE NOT ("data" ? $1::text)');
     expect(result.params).toEqual(["Making"]);
   });
 
@@ -204,14 +206,14 @@ describe("buildWhereClause — JSONB operators", () => {
       fc("active", "equals", true),
       fc("tags", "jsonb_has_key", "urgent"),
     ]);
-    expect(result.sql).toBe('WHERE "active" = $1 AND "tags" ? $2');
+    expect(result.sql).toBe('WHERE "active" = $1 AND "tags" ? $2::text');
     expect(result.params).toEqual([true, "urgent"]);
   });
 
   it("jsonb_has_key parameterizes value (SQL injection safe)", () => {
     const malicious = "'; DROP TABLE users;--";
     const result = buildWhereClause([fc("data", "jsonb_has_key", malicious)]);
-    expect(result.sql).toBe('WHERE "data" ? $1');
+    expect(result.sql).toBe('WHERE "data" ? $1::text');
     expect(result.params).toEqual([malicious]);
     expect(result.sql).not.toContain(malicious);
   });
@@ -232,7 +234,7 @@ describe("buildWhereClause — compound and edge cases", () => {
       fc("name", "contains", null),
       fc("name", "is_empty"),
     ]);
-    expect(result.sql).toBe(`WHERE ("name" IS NULL OR "name" = '')`);
+    expect(result.sql).toBe(`WHERE ("name" IS NULL OR "name"::text = '')`);
     expect(result.params).toEqual([]);
   });
 
@@ -268,7 +270,7 @@ describe("buildWhereClause — compound and edge cases", () => {
     ]);
     // is_not_empty uses no params, so next starts at $1
     expect(result.sql).toBe(
-      `WHERE ("email" IS NOT NULL AND "email" != '') AND "name" ILIKE '%' || $1 || '%' AND "age" > $2`,
+      `WHERE ("email" IS NOT NULL AND "email"::text != '') AND "name" ILIKE '%' || $1 || '%' AND "age" > $2`,
     );
     expect(result.params).toEqual(["test", 18]);
   });
@@ -1140,7 +1142,7 @@ describe("buildWhereClauseFromNodes", () => {
       "and",
     );
     expect(result.sql).toBe(
-      `WHERE "active" = $1 AND (("email" IS NULL OR "email" = '') OR "name" ILIKE '%' || $2 || '%')`,
+      `WHERE "active" = $1 AND (("email" IS NULL OR "email"::text = '') OR "name" ILIKE '%' || $2 || '%')`,
     );
     expect(result.params).toEqual([true, "test"]);
   });
@@ -1272,5 +1274,163 @@ describe("buildWhereClause — column comparison", () => {
     expect(() =>
       buildWhereClause([fcc("a", "contains", "b")], "and", 0, allowed),
     ).toThrow("does not support column-to-column comparison");
+  });
+});
+
+// ─── PGLite Integration Tests — JSONB Filtering ────────────────────────────
+
+import { PGlite } from "@electric-sql/pglite";
+
+describe("JSONB filtering (PGLite integration)", () => {
+  let db: PGlite;
+
+  beforeAll(async () => {
+    db = new PGlite();
+    await db.exec(`
+      CREATE TABLE items (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        tags JSONB
+      )
+    `);
+    await db.exec(`
+      INSERT INTO items (name, tags) VALUES
+        ('Item A', '{"JavaScript": true, "TypeScript": true}'),
+        ('Item B', '{"Python": true, "SQL": true}'),
+        ('Item C', '{"JavaScript": true, "Python": true, "Go": true}'),
+        ('Item D', '{"Rust": true}'),
+        ('Item E', NULL)
+    `);
+  });
+
+  afterAll(async () => {
+    await db.close();
+  });
+
+  it("jsonb_has_key filters rows that contain the key", async () => {
+    const where = buildWhereClause(
+      [fc("tags", "jsonb_has_key", "JavaScript")],
+      "and",
+      0,
+      ["tags"],
+    );
+    const result = await db.query<{ name: string }>(
+      `SELECT name FROM items ${where.sql} ORDER BY name`,
+      where.params,
+    );
+    expect(result.rows.map((r) => r.name)).toEqual(["Item A", "Item C"]);
+  });
+
+  it("jsonb_not_has_key excludes rows that contain the key", async () => {
+    const where = buildWhereClause(
+      [fc("tags", "jsonb_not_has_key", "JavaScript")],
+      "and",
+      0,
+      ["tags"],
+    );
+    const result = await db.query<{ name: string }>(
+      `SELECT name FROM items ${where.sql} ORDER BY name`,
+      where.params,
+    );
+    // NULL tags rows are excluded by NOT (col ? key) — NULL ? key = NULL which is falsy
+    expect(result.rows.map((r) => r.name)).toEqual(["Item B", "Item D"]);
+  });
+
+  it("jsonb_has_key combined with text filter", async () => {
+    const conditions: FilterCondition[] = [
+      fc("tags", "jsonb_has_key", "Python"),
+      fc("name", "contains", "C"),
+    ];
+    const where = buildWhereClause(conditions, "and", 0, ["tags", "name"]);
+    const result = await db.query<{ name: string }>(
+      `SELECT name FROM items ${where.sql} ORDER BY name`,
+      where.params,
+    );
+    expect(result.rows.map((r) => r.name)).toEqual(["Item C"]);
+  });
+
+  it("jsonb_has_key with non-existent key returns empty", async () => {
+    const where = buildWhereClause(
+      [fc("tags", "jsonb_has_key", "NonExistentKey")],
+      "and",
+      0,
+      ["tags"],
+    );
+    const result = await db.query<{ name: string }>(
+      `SELECT name FROM items ${where.sql}`,
+      where.params,
+    );
+    expect(result.rows).toEqual([]);
+  });
+
+  it("jsonb_object_keys extracts individual keys for suggestions", async () => {
+    const result = await db.query<{ val: string }>(
+      `SELECT DISTINCT jsonb_object_keys("tags") AS val FROM items WHERE "tags" IS NOT NULL ORDER BY val`,
+    );
+    expect(result.rows.map((r) => r.val)).toEqual([
+      "Go",
+      "JavaScript",
+      "Python",
+      "Rust",
+      "SQL",
+      "TypeScript",
+    ]);
+  });
+
+  it("is_empty works on JSONB column (no invalid json error)", async () => {
+    const where = buildWhereClause([fc("tags", "is_empty")], "and", 0, [
+      "tags",
+    ]);
+    const result = await db.query<{ name: string }>(
+      `SELECT name FROM items ${where.sql} ORDER BY name`,
+      where.params,
+    );
+    // Only Item E has NULL tags
+    expect(result.rows.map((r) => r.name)).toEqual(["Item E"]);
+  });
+
+  it("is_not_empty works on JSONB column (no invalid json error)", async () => {
+    const where = buildWhereClause([fc("tags", "is_not_empty")], "and", 0, [
+      "tags",
+    ]);
+    const result = await db.query<{ name: string }>(
+      `SELECT name FROM items ${where.sql} ORDER BY name`,
+      where.params,
+    );
+    expect(result.rows.map((r) => r.name)).toEqual([
+      "Item A",
+      "Item B",
+      "Item C",
+      "Item D",
+    ]);
+  });
+
+  it("column comparison works in PGLite", async () => {
+    await db.exec(`
+      CREATE TABLE dates_test (
+        id SERIAL PRIMARY KEY,
+        created_at DATE NOT NULL,
+        updated_at DATE NOT NULL
+      )
+    `);
+    await db.exec(`
+      INSERT INTO dates_test (created_at, updated_at) VALUES
+        ('2024-01-01', '2024-03-01'),
+        ('2024-01-01', '2024-12-01'),
+        ('2024-06-01', '2024-07-01')
+    `);
+
+    const where = buildWhereClause(
+      [fcc("updated_at", "is_after", "created_at", "6 months")],
+      "and",
+      0,
+      ["created_at", "updated_at"],
+    );
+    const result = await db.query<{ id: number }>(
+      `SELECT id FROM dates_test ${where.sql} ORDER BY id`,
+      where.params,
+    );
+    // Only row 2: updated_at (2024-12-01) > created_at (2024-01-01) + 6 months (2024-07-01)
+    expect(result.rows.map((r) => r.id)).toEqual([2]);
   });
 });

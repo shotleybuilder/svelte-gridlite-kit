@@ -218,11 +218,14 @@ function buildConditionSQL(
       };
 
     case "is_empty":
-      return { sql: `(${quotedCol} IS NULL OR ${quotedCol} = '')`, params: [] };
+      return {
+        sql: `(${quotedCol} IS NULL OR ${quotedCol}::text = '')`,
+        params: [],
+      };
 
     case "is_not_empty":
       return {
-        sql: `(${quotedCol} IS NOT NULL AND ${quotedCol} != '')`,
+        sql: `(${quotedCol} IS NOT NULL AND ${quotedCol}::text != '')`,
         params: [],
       };
 
@@ -248,11 +251,11 @@ function buildConditionSQL(
 
     // JSONB operators
     case "jsonb_has_key":
-      return { sql: `${quotedCol} ? ${p()}`, params: [condition.value] };
+      return { sql: `${quotedCol} ? ${p()}::text`, params: [condition.value] };
 
     case "jsonb_not_has_key":
       return {
-        sql: `NOT (${quotedCol} ? ${p()})`,
+        sql: `NOT (${quotedCol} ? ${p()}::text)`,
         params: [condition.value],
       };
 

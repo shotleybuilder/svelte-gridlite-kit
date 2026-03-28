@@ -784,14 +784,25 @@
 
 	function handleContextFilterEquals(columnName: string, value: unknown) {
 		const id = `ctx-${Date.now()}`;
-		const newFilter: FilterCondition = { id, field: columnName, operator: 'equals', value };
+		const col = columns.find((c) => c.name === columnName);
+		const isJson = col?.dataType === 'json';
+		// JSONB columns need jsonb_has_key; for objects, stringify; for primitives, convert to string
+		const operator = isJson ? 'jsonb_has_key' as const : 'equals' as const;
+		const filterValue = isJson && typeof value === 'object' && value !== null
+			? JSON.stringify(value) : value;
+		const newFilter: FilterCondition = { id, field: columnName, operator, value: filterValue };
 		setFilters([...filters, newFilter], filterLogic);
 		filterExpanded = true;
 	}
 
 	function handleContextFilterNotEquals(columnName: string, value: unknown) {
 		const id = `ctx-${Date.now()}`;
-		const newFilter: FilterCondition = { id, field: columnName, operator: 'not_equals', value };
+		const col = columns.find((c) => c.name === columnName);
+		const isJson = col?.dataType === 'json';
+		const operator = isJson ? 'jsonb_not_has_key' as const : 'not_equals' as const;
+		const filterValue = isJson && typeof value === 'object' && value !== null
+			? JSON.stringify(value) : value;
+		const newFilter: FilterCondition = { id, field: columnName, operator, value: filterValue };
 		setFilters([...filters, newFilter], filterLogic);
 		filterExpanded = true;
 	}

@@ -341,17 +341,17 @@
 
 	.group-remove-btn {
 		margin-left: auto;
+		flex-shrink: 0;
 		padding: 0.25rem;
 		background: none;
 		border: none;
-		color: #6b7280;
+		color: #9ca3af;
 		cursor: pointer;
 		border-radius: 0.25rem;
-		transition: all 0.2s;
+		transition: color 0.15s;
 	}
 
 	.group-remove-btn:hover {
-		background: #fee2e2;
 		color: #dc2626;
 	}
 
