@@ -136,10 +136,13 @@
 	// Reactive stores for each condition's loaded values
 	let conditionValues: Map<string, string[]> = new Map();
 	let conditionRanges: Map<string, { min: number; max: number } | null> = new Map();
+	let loadingConditions: Set<string> = new Set();
 
 	// Load suggestions when a condition's field changes
 	async function loadSuggestionsForCondition(conditionId: string, field: string) {
-		if (!field) return;
+		if (!field || loadingConditions.has(conditionId)) return;
+
+		loadingConditions.add(conditionId);
 
 		const values = await getColumnValues(field);
 		conditionValues.set(conditionId, values);
@@ -148,6 +151,8 @@
 		const range = await getNumericRange(field);
 		conditionRanges.set(conditionId, range);
 		conditionRanges = conditionRanges; // trigger reactivity
+
+		loadingConditions.delete(conditionId);
 	}
 
 	// Watch conditions for field changes and load suggestions (leaf conditions only)

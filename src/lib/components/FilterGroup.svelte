@@ -120,14 +120,21 @@
 		}
 	}
 
+	let loadingConditions: Set<string> = new Set();
+
 	async function loadSuggestionsForCondition(conditionId: string, field: string) {
-		if (!field) return;
+		if (!field || loadingConditions.has(conditionId)) return;
+
+		loadingConditions.add(conditionId);
+
 		const values = await getColumnValues(field);
 		conditionValues.set(conditionId, values);
 		conditionValues = conditionValues;
 		const range = await getNumericRange(field);
 		conditionRanges.set(conditionId, range);
 		conditionRanges = conditionRanges;
+
+		loadingConditions.delete(conditionId);
 	}
 
 	// Load suggestions for leaf children
