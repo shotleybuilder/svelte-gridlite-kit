@@ -124,7 +124,7 @@
 		if (condition.field && operatorOptions.length > 0) {
 			const currentOperatorValid = operatorOptions.some((op) => op.value === condition.operator);
 			if (!currentOperatorValid) {
-				onUpdate({ ...condition, operator: 'equals' });
+				onUpdate({ ...condition, operator: operatorOptions[0].value });
 			}
 		}
 	}
