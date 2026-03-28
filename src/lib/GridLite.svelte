@@ -13,6 +13,7 @@
 		GridFeatures,
 		GridState,
 		FilterCondition,
+		FilterNode,
 		FilterLogic,
 		SortConfig,
 		GroupConfig,
@@ -26,6 +27,7 @@
 	import {
 		buildQuery,
 		buildCountQuery,
+		buildWhereClauseFromNodes,
 		buildGroupSummaryQuery,
 		buildGroupCountQuery,
 		buildGroupDetailQuery
@@ -89,7 +91,7 @@
 	let error: string | null = null;
 
 	// Grid state
-	let filters: FilterCondition[] = config?.defaultFilters ?? [];
+	let filters: FilterNode[] = config?.defaultFilters ?? [];
 	let filterLogic: FilterLogic = config?.filterLogic ?? 'and';
 	let sorting: SortConfig[] = config?.defaultSorting ?? [];
 	let grouping: GroupConfig[] = config?.defaultGrouping ?? [];
@@ -605,7 +607,7 @@
 
 	// ─── Public Methods (for sub-components in future sessions) ───────────────
 
-	export function setFilters(newFilters: FilterCondition[], logic?: FilterLogic) {
+	export function setFilters(newFilters: FilterNode[], logic?: FilterLogic) {
 		filters = newFilters;
 		if (logic) filterLogic = logic;
 		page = 0; // Reset to first page
@@ -718,7 +720,7 @@
 
 	// ─── FilterBar handlers ───────────────────────────────────────────────────
 
-	function handleFiltersChange(newFilters: FilterCondition[]) {
+	function handleFiltersChange(newFilters: FilterNode[]) {
 		setFilters(newFilters, filterLogic);
 	}
 

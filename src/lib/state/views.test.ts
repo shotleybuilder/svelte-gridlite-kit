@@ -46,7 +46,7 @@ describe("view CRUD", () => {
     expect(loaded!.name).toBe("Active Users");
     expect(loaded!.description).toBe("Shows only active users");
     expect(loaded!.filters).toHaveLength(1);
-    expect(loaded!.filters![0].field).toBe("active");
+    expect((loaded!.filters![0] as { field: string }).field).toBe("active");
     expect(loaded!.filterLogic).toBe("and");
     expect(loaded!.sorting).toHaveLength(1);
     expect(loaded!.sorting![0].column).toBe("name");

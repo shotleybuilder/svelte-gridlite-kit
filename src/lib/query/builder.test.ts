@@ -3,6 +3,7 @@ import {
   quoteIdentifier,
   resolveFrom,
   buildWhereClause,
+  buildWhereClauseFromNodes,
   buildOrderByClause,
   buildGroupByClause,
   buildPaginationClause,
@@ -13,7 +14,13 @@ import {
   buildQuery,
   buildCountQuery,
 } from "./builder.js";
-import type { FilterCondition, SortConfig, GroupConfig } from "../types.js";
+import type {
+  FilterCondition,
+  FilterNode,
+  FilterGroup,
+  SortConfig,
+  GroupConfig,
+} from "../types.js";
 
 // ─── Helper ─────────────────────────────────────────────────────────────────
 
@@ -921,5 +928,168 @@ describe("buildCountQuery with source", () => {
     expect(result.sql).toContain("AS _gridlite_sub");
     expect(result.sql).toContain('WHERE "active" = $1');
     expect(result.params).toEqual([true]);
+  });
+});
+
+// ─── buildWhereClauseFromNodes — nested filter groups ───────────────────────
+
+function fg(logic: "and" | "or", children: FilterNode[]): FilterGroup {
+  return {
+    id: `group-${Math.random().toString(36).substr(2, 6)}`,
+    logic,
+    children,
+  };
+}
+
+describe("buildWhereClauseFromNodes", () => {
+  it("single leaf — same as flat buildWhereClause", () => {
+    const result = buildWhereClauseFromNodes([fc("name", "equals", "Alice")]);
+    expect(result.sql).toBe('WHERE "name" = $1');
+    expect(result.params).toEqual(["Alice"]);
+  });
+
+  it("flat array of leaves with AND", () => {
+    const result = buildWhereClauseFromNodes(
+      [fc("name", "equals", "Alice"), fc("age", "greater_than", 25)],
+      "and",
+    );
+    expect(result.sql).toBe('WHERE "name" = $1 AND "age" > $2');
+    expect(result.params).toEqual(["Alice", 25]);
+  });
+
+  it("flat array of leaves with OR", () => {
+    const result = buildWhereClauseFromNodes(
+      [fc("name", "equals", "Alice"), fc("name", "equals", "Bob")],
+      "or",
+    );
+    expect(result.sql).toBe('WHERE "name" = $1 OR "name" = $2');
+    expect(result.params).toEqual(["Alice", "Bob"]);
+  });
+
+  it("single group with 2 leaves", () => {
+    const group = fg("or", [
+      fc("status", "equals", "active"),
+      fc("status", "equals", "pending"),
+    ]);
+    const result = buildWhereClauseFromNodes([group]);
+    expect(result.sql).toBe('WHERE ("status" = $1 OR "status" = $2)');
+    expect(result.params).toEqual(["active", "pending"]);
+  });
+
+  it("mixed: leaf AND group — A AND (B OR C)", () => {
+    const result = buildWhereClauseFromNodes(
+      [
+        fc("active", "equals", true),
+        fg("or", [
+          fc("role", "equals", "admin"),
+          fc("role", "equals", "editor"),
+        ]),
+      ],
+      "and",
+    );
+    expect(result.sql).toBe(
+      'WHERE "active" = $1 AND ("role" = $2 OR "role" = $3)',
+    );
+    expect(result.params).toEqual([true, "admin", "editor"]);
+  });
+
+  it("nested groups — A AND (B OR (C AND D))", () => {
+    const result = buildWhereClauseFromNodes(
+      [
+        fc("active", "equals", true),
+        fg("or", [
+          fc("role", "equals", "admin"),
+          fg("and", [
+            fc("dept", "equals", "eng"),
+            fc("level", "greater_than", 3),
+          ]),
+        ]),
+      ],
+      "and",
+    );
+    expect(result.sql).toBe(
+      'WHERE "active" = $1 AND ("role" = $2 OR ("dept" = $3 AND "level" > $4))',
+    );
+    expect(result.params).toEqual([true, "admin", "eng", 3]);
+  });
+
+  it("empty group skipped — produces no SQL", () => {
+    const result = buildWhereClauseFromNodes([fg("or", [])]);
+    expect(result.sql).toBe("");
+    expect(result.params).toEqual([]);
+  });
+
+  it("group with only invalid children skipped", () => {
+    const result = buildWhereClauseFromNodes([
+      fc("name", "equals", "Alice"),
+      fg("or", [fc("", "equals", "x"), fc("age", "equals", "")]),
+    ]);
+    expect(result.sql).toBe('WHERE "name" = $1');
+    expect(result.params).toEqual(["Alice"]);
+  });
+
+  it("group with single child — parentheses preserved", () => {
+    const result = buildWhereClauseFromNodes([
+      fc("name", "equals", "Alice"),
+      fg("or", [fc("role", "equals", "admin")]),
+    ]);
+    expect(result.sql).toBe('WHERE "name" = $1 AND ("role" = $2)');
+    expect(result.params).toEqual(["Alice", "admin"]);
+  });
+
+  it("parameter indexing with paramOffset", () => {
+    const result = buildWhereClauseFromNodes(
+      [
+        fc("name", "equals", "Alice"),
+        fg("or", [fc("a", "equals", "x"), fc("b", "equals", "y")]),
+      ],
+      "and",
+      5,
+    );
+    expect(result.sql).toBe('WHERE "name" = $6 AND ("a" = $7 OR "b" = $8)');
+    expect(result.params).toEqual(["Alice", "x", "y"]);
+  });
+
+  it("backwards compat: buildWhereClause with flat conditions unchanged", () => {
+    const result = buildWhereClause(
+      [fc("name", "equals", "Alice"), fc("age", "greater_than", 25)],
+      "and",
+    );
+    expect(result.sql).toBe('WHERE "name" = $1 AND "age" > $2');
+    expect(result.params).toEqual(["Alice", 25]);
+  });
+
+  it("column validation inside groups", () => {
+    const allowed = ["name", "age"];
+    expect(() =>
+      buildWhereClauseFromNodes(
+        [fg("or", [fc("secret", "equals", "x")])],
+        "and",
+        0,
+        allowed,
+      ),
+    ).toThrow("Column not found");
+  });
+
+  it("SQL injection prevention in nested leaves", () => {
+    expect(() =>
+      buildWhereClauseFromNodes([
+        fg("or", [fc("name; DROP TABLE users--", "equals", "x")]),
+      ]),
+    ).toThrow("Invalid column name");
+  });
+
+  it("is_empty inside group — no params consumed", () => {
+    const result = buildWhereClauseFromNodes(
+      [
+        fc("active", "equals", true),
+        fg("or", [fc("email", "is_empty"), fc("name", "contains", "test")]),
+      ],
+      "and",
+    );
+    expect(result.sql).toBe(
+      `WHERE "active" = $1 AND (("email" IS NULL OR "email" = '') OR "name" ILIKE '%' || $2 || '%')`,
+    );
+    expect(result.params).toEqual([true, "test"]);
   });
 });

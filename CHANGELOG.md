@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.11 — 2026-03-28
+
+### Added
+
+- **Nested filter groups** — Filter conditions can now be grouped with independent AND/OR logic, enabling complex expressions like `A AND (B OR C)`. New `FilterGroup` and `FilterNode` types form a discriminated union with the existing `FilterCondition`. The query builder recursively generates parenthesised WHERE clauses with correct `$N` parameter numbering. A new `FilterGroup.svelte` recursive component renders nested groups with visual indentation (up to 3 levels). The FilterBar now has an "Add group" button alongside "Add condition". Fully backwards-compatible — existing flat `FilterCondition[]` usage works unchanged (#17)
+
 ## 0.4.10 — 2026-03-27
 
 ### Added

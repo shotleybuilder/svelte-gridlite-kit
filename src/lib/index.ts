@@ -26,6 +26,8 @@ export type {
   FilterCondition,
   FilterOperator,
   FilterLogic,
+  FilterGroup,
+  FilterNode,
   SortConfig,
   GroupConfig,
   AggregationConfig,
@@ -38,11 +40,14 @@ export type {
   ToolbarLayout,
 } from "./types.js";
 
+export { isFilterGroup } from "./types.js";
+
 // Query builder
 export {
   quoteIdentifier,
   resolveFrom,
   buildWhereClause,
+  buildWhereClauseFromNodes,
   buildOrderByClause,
   buildGroupByClause,
   buildPaginationClause,

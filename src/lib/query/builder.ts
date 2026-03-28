@@ -12,11 +12,13 @@
 import type {
   FilterCondition,
   FilterLogic,
+  FilterNode,
   SortConfig,
   GroupConfig,
   ParameterizedQuery,
   AggregateFunction,
 } from "../types.js";
+import { isFilterGroup } from "../types.js";
 
 // ─── Source Resolution ──────────────────────────────────────────────────────
 
@@ -194,6 +196,92 @@ function buildConditionSQL(
   }
 }
 
+// ─── WHERE Clause Builder (FilterNode[] — supports nested groups) ────────────
+
+/**
+ * Validate whether a leaf condition has a usable value.
+ */
+function isValidLeaf(c: FilterCondition): boolean {
+  return !!(
+    c.field &&
+    (c.operator === "is_empty" ||
+      c.operator === "is_not_empty" ||
+      (c.value !== null && c.value !== undefined && c.value !== ""))
+  );
+}
+
+/**
+ * Build a WHERE clause from a tree of FilterNode[].
+ *
+ * Supports nested FilterGroup nodes (recursive). Leaf FilterCondition
+ * nodes are handled identically to the flat buildWhereClause.
+ *
+ * @param nodes - Array of FilterNode (conditions or groups)
+ * @param logic - Logic to join the top-level nodes ('and' or 'or')
+ * @param paramOffset - Starting parameter index (for $1, $2, ...)
+ * @param allowedColumns - Optional allowlist of column names
+ */
+export function buildWhereClauseFromNodes(
+  nodes: FilterNode[],
+  logic: FilterLogic = "and",
+  paramOffset: number = 0,
+  allowedColumns?: string[],
+): ParameterizedQuery {
+  const result = buildNodeList(nodes, logic, paramOffset, allowedColumns);
+  if (!result.sql) {
+    return { sql: "", params: [] };
+  }
+  return { sql: `WHERE ${result.sql}`, params: result.params };
+}
+
+/**
+ * Internal recursive builder. Returns the SQL fragment (without WHERE prefix)
+ * and collected params.
+ */
+function buildNodeList(
+  nodes: FilterNode[],
+  logic: FilterLogic,
+  paramOffset: number,
+  allowedColumns?: string[],
+): ParameterizedQuery {
+  const parts: string[] = [];
+  const params: unknown[] = [];
+  let paramIndex = paramOffset + 1; // PostgreSQL params are 1-indexed
+
+  for (const node of nodes) {
+    if (isFilterGroup(node)) {
+      // Recursive: build the group's children with the group's own logic
+      if (node.children.length === 0) continue;
+      const groupResult = buildNodeList(
+        node.children,
+        node.logic,
+        paramIndex - 1, // convert back to offset (0-based)
+        allowedColumns,
+      );
+      if (groupResult.sql) {
+        parts.push(`(${groupResult.sql})`);
+        params.push(...groupResult.params);
+        paramIndex += groupResult.params.length;
+      }
+    } else {
+      // Leaf condition
+      if (!isValidLeaf(node)) continue;
+      const col = quoteIdentifier(node.field, allowedColumns);
+      const result = buildConditionSQL(col, node, paramIndex);
+      parts.push(result.sql);
+      params.push(...result.params);
+      paramIndex += result.params.length;
+    }
+  }
+
+  if (parts.length === 0) {
+    return { sql: "", params: [] };
+  }
+
+  const joiner = logic === "or" ? " OR " : " AND ";
+  return { sql: parts.join(joiner), params };
+}
+
 // ─── ORDER BY Clause Builder ────────────────────────────────────────────────
 
 /**
@@ -326,8 +414,8 @@ export interface GroupSummaryOptions {
   source?: string;
   /** Group columns (max 3) */
   grouping: GroupConfig[];
-  /** Filter conditions to apply before grouping */
-  filters?: FilterCondition[];
+  /** Filter conditions (or nested groups) to apply before grouping */
+  filters?: FilterNode[];
   /** Filter logic */
   filterLogic?: FilterLogic;
   /** Allowed column names */
@@ -380,7 +468,12 @@ export function buildGroupSummaryQuery(
   );
 
   // WHERE from filters
-  const where = buildWhereClause(filters, filterLogic, 0, allowedColumns);
+  const where = buildWhereClauseFromNodes(
+    filters,
+    filterLogic,
+    0,
+    allowedColumns,
+  );
 
   // Global search
   const searchCols = searchColumns ?? allowedColumns ?? [];
@@ -457,7 +550,12 @@ export function buildGroupCountQuery(
     quoteIdentifier(g.column, allowedColumns),
   );
 
-  const where = buildWhereClause(filters, filterLogic, 0, allowedColumns);
+  const where = buildWhereClauseFromNodes(
+    filters,
+    filterLogic,
+    0,
+    allowedColumns,
+  );
   const searchCols = searchColumns ?? allowedColumns ?? [];
   const globalSearchClause = buildGlobalSearchClause(
     globalSearch ?? "",
@@ -493,8 +591,8 @@ export interface GroupDetailOptions {
   source?: string;
   /** Values to match for parent groups: [{ column: "department", value: "Engineering" }] */
   groupValues: { column: string; value: unknown }[];
-  /** Filter conditions */
-  filters?: FilterCondition[];
+  /** Filter conditions (or nested groups) */
+  filters?: FilterNode[];
   /** Filter logic */
   filterLogic?: FilterLogic;
   /** Sorting for child rows */
@@ -538,7 +636,12 @@ export function buildGroupDetailQuery(
   const fromClause = resolveFrom(table, source);
 
   // Base WHERE from filters
-  const where = buildWhereClause(filters, filterLogic, 0, allowedColumns);
+  const where = buildWhereClauseFromNodes(
+    filters,
+    filterLogic,
+    0,
+    allowedColumns,
+  );
 
   // Global search
   const searchCols = searchColumns ?? allowedColumns ?? [];
@@ -595,8 +698,8 @@ export interface QueryOptions {
   /** Raw SQL subquery source (mutually exclusive with `table`) */
   source?: string;
 
-  /** Filter conditions */
-  filters?: FilterCondition[];
+  /** Filter conditions (or nested groups) */
+  filters?: FilterNode[];
 
   /** Filter logic (and/or) */
   filterLogic?: FilterLogic;
@@ -653,7 +756,12 @@ export function buildQuery(options: QueryOptions): ParameterizedQuery {
   );
 
   // WHERE clause from filters
-  const where = buildWhereClause(filters, filterLogic, 0, allowedColumns);
+  const where = buildWhereClauseFromNodes(
+    filters,
+    filterLogic,
+    0,
+    allowedColumns,
+  );
 
   // Global search clause
   const searchCols = searchColumns ?? allowedColumns ?? [];
@@ -717,7 +825,12 @@ export function buildCountQuery(options: QueryOptions): ParameterizedQuery {
   } = options;
 
   const fromClause = resolveFrom(table, source);
-  const where = buildWhereClause(filters, filterLogic, 0, allowedColumns);
+  const where = buildWhereClauseFromNodes(
+    filters,
+    filterLogic,
+    0,
+    allowedColumns,
+  );
 
   // Global search clause
   const searchCols = searchColumns ?? allowedColumns ?? [];

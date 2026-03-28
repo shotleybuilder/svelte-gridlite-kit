@@ -8,13 +8,17 @@
 
 	import type {
 		FilterCondition,
+		FilterNode,
+		FilterGroup,
 		FilterLogic,
 		ColumnMetadata,
 		ColumnConfig
 	} from '../types.js';
+	import { isFilterGroup } from '../types.js';
 	import type { PGliteWithLive } from '../query/live.js';
 	import { quoteIdentifier, resolveFrom } from '../query/builder.js';
 	import FilterConditionComponent from './FilterCondition.svelte';
+	import FilterGroupComponent from './FilterGroup.svelte';
 
 	/** PGLite instance for running suggestion queries */
 	export let db: PGliteWithLive;
@@ -34,9 +38,9 @@
 	/** Allowed column names for query safety */
 	export let allowedColumns: string[] = [];
 
-	/** Current filter conditions */
-	export let conditions: FilterCondition[] = [];
-	export let onConditionsChange: (conditions: FilterCondition[]) => void;
+	/** Current filter nodes (conditions and/or groups) */
+	export let conditions: FilterNode[] = [];
+	export let onConditionsChange: (conditions: FilterNode[]) => void;
 
 	/** Filter logic (AND/OR) */
 	export let logic: FilterLogic = 'and';
@@ -134,10 +138,10 @@
 		conditionRanges = conditionRanges; // trigger reactivity
 	}
 
-	// Watch conditions for field changes and load suggestions
+	// Watch conditions for field changes and load suggestions (leaf conditions only)
 	$: {
 		for (const cond of conditions) {
-			if (cond.field) {
+			if (!isFilterGroup(cond) && cond.field) {
 				const cached = conditionValues.get(cond.id);
 				// Load on first appearance or if field changed (cache miss implied by new field)
 				if (cached === undefined) {
@@ -171,33 +175,48 @@
 		}
 	}
 
-	function updateCondition(index: number, updated: FilterCondition) {
+	function updateNode(index: number, updated: FilterNode) {
 		const prev = conditions[index];
 		const newConditions = [...conditions];
 		newConditions[index] = updated;
 		onConditionsChange(newConditions);
 
-		// If field changed, reload suggestions
-		if (prev.field !== updated.field && updated.field) {
-			// Clear old cache entry for this condition
-			conditionValues.delete(updated.id);
-			conditionRanges.delete(updated.id);
-			loadSuggestionsForCondition(updated.id, updated.field);
+		// If leaf field changed, reload suggestions
+		if (!isFilterGroup(updated) && !isFilterGroup(prev)) {
+			if (prev.field !== updated.field && updated.field) {
+				conditionValues.delete(updated.id);
+				conditionRanges.delete(updated.id);
+				loadSuggestionsForCondition(updated.id, updated.field);
+			}
 		}
 	}
 
-	function removeCondition(index: number) {
+	function removeNode(index: number) {
 		const removed = conditions[index];
 		const newConditions = conditions.filter((_, i) => i !== index);
 		onConditionsChange(newConditions);
 
-		// Clean up caches for removed condition
-		conditionValues.delete(removed.id);
-		conditionRanges.delete(removed.id);
+		// Clean up caches for removed leaf condition
+		if (!isFilterGroup(removed)) {
+			conditionValues.delete(removed.id);
+			conditionRanges.delete(removed.id);
+		}
 
 		if (newConditions.length === 0) {
 			setExpanded(false);
 		}
+	}
+
+	function addGroup() {
+		const newGroup: FilterGroup = {
+			id: generateId(),
+			logic: logic === 'and' ? 'or' : 'and',
+			children: [
+				{ id: generateId(), field: '', operator: 'equals', value: '' } as FilterCondition
+			]
+		};
+		onConditionsChange([...conditions, newGroup]);
+		setExpanded(true);
 	}
 
 	function clearAllConditions() {
@@ -222,13 +241,27 @@
 	// ─── Computed ─────────────────────────────────────────────────────────────
 
 	$: hasConditions = conditions.length > 0;
-	$: filterCount = conditions.filter(
-		(c) =>
-			c.field &&
-			(c.operator === 'is_empty' ||
-				c.operator === 'is_not_empty' ||
-				(c.value !== null && c.value !== undefined && c.value !== ''))
-	).length;
+
+	function countValidLeaves(nodes: FilterNode[]): number {
+		let count = 0;
+		for (const node of nodes) {
+			if (isFilterGroup(node)) {
+				count += countValidLeaves(node.children);
+			} else {
+				if (
+					node.field &&
+					(node.operator === 'is_empty' ||
+						node.operator === 'is_not_empty' ||
+						(node.value !== null && node.value !== undefined && node.value !== ''))
+				) {
+					count++;
+				}
+			}
+		}
+		return count;
+	}
+
+	$: filterCount = countValidLeaves(conditions);
 </script>
 
 <div class="filter-bar">
@@ -258,50 +291,97 @@
 				</div>
 
 				<div class="filter-conditions">
-					{#each conditions as condition, index (condition.id)}
-						<div class="condition-row">
-							{#if index === 0}
-								<span class="filter-label">Where</span>
-							{:else}
-								<select
-									class="logic-select"
-									value={logic}
-									on:change={(e) => {
-										const newLogic = e.currentTarget.value;
-										onLogicChange(newLogic === 'or' ? 'or' : 'and');
-									}}
-								>
-									<option value="and">and</option>
-									<option value="or">or</option>
-								</select>
-							{/if}
-							<div class="condition-wrapper">
-								<FilterConditionComponent
-									{condition}
-									{columns}
-									{columnConfigs}
-									columnValues={conditionValues.get(condition.id) ?? []}
-									numericRange={conditionRanges.get(condition.id) ?? null}
-									onUpdate={(updated) => updateCondition(index, updated)}
-									onRemove={() => removeCondition(index)}
-								/>
+					{#each conditions as node, index (node.id)}
+						{#if isFilterGroup(node)}
+							<div class="condition-row">
+								{#if index === 0}
+									<span class="filter-label">Where</span>
+								{:else}
+									<select
+										class="logic-select"
+										value={logic}
+										on:change={(e) => {
+											const newLogic = e.currentTarget.value;
+											onLogicChange(newLogic === 'or' ? 'or' : 'and');
+										}}
+									>
+										<option value="and">and</option>
+										<option value="or">or</option>
+									</select>
+								{/if}
+								<div class="condition-wrapper">
+									<FilterGroupComponent
+										group={node}
+										depth={0}
+										{db}
+										{table}
+										{source}
+										{columns}
+										{columnConfigs}
+										{allowedColumns}
+										onUpdate={(updated) => updateNode(index, updated)}
+										onRemove={() => removeNode(index)}
+									/>
+								</div>
 							</div>
-						</div>
+						{:else}
+							<div class="condition-row">
+								{#if index === 0}
+									<span class="filter-label">Where</span>
+								{:else}
+									<select
+										class="logic-select"
+										value={logic}
+										on:change={(e) => {
+											const newLogic = e.currentTarget.value;
+											onLogicChange(newLogic === 'or' ? 'or' : 'and');
+										}}
+									>
+										<option value="and">and</option>
+										<option value="or">or</option>
+									</select>
+								{/if}
+								<div class="condition-wrapper">
+									<FilterConditionComponent
+										condition={node}
+										{columns}
+										{columnConfigs}
+										columnValues={conditionValues.get(node.id) ?? []}
+										numericRange={conditionRanges.get(node.id) ?? null}
+										onUpdate={(updated) => updateNode(index, updated)}
+										onRemove={() => removeNode(index)}
+									/>
+								</div>
+							</div>
+						{/if}
 					{/each}
 				</div>
 			{/if}
 
-			<button class="add-condition-btn" on:click={addCondition}>
-				<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-					/>
-				</svg>
-				Add condition
-			</button>
+			<div class="filter-actions">
+				<button class="add-condition-btn" on:click={addCondition}>
+					<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+						/>
+					</svg>
+					Add condition
+				</button>
+				<button class="add-group-btn" on:click={addGroup}>
+					<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+						/>
+					</svg>
+					Add group
+				</button>
+			</div>
 		</div>
 	{/if}
 </div>
@@ -452,6 +532,11 @@
 		flex-direction: column;
 	}
 
+	.filter-actions {
+		display: flex;
+		gap: 0.5rem;
+	}
+
 	.add-condition-btn {
 		display: inline-flex;
 		align-items: center;
@@ -469,6 +554,26 @@
 
 	.add-condition-btn:hover {
 		background: #eef2ff;
+		border-style: solid;
+	}
+
+	.add-group-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		font-size: 0.875rem;
+		font-weight: 500;
+		color: #7c3aed;
+		background: white;
+		border: 1px dashed #c4b5fd;
+		border-radius: 0.375rem;
+		cursor: pointer;
+		transition: all 0.2s;
+	}
+
+	.add-group-btn:hover {
+		background: #f5f3ff;
 		border-style: solid;
 	}
 

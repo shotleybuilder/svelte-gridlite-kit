@@ -65,7 +65,7 @@ export interface GridConfig {
   defaultColumnSizing?: Record<string, number>;
 
   /** Default filters applied on load */
-  defaultFilters?: FilterCondition[];
+  defaultFilters?: FilterNode[];
 
   /** Default filter logic */
   filterLogic?: FilterLogic;
@@ -159,6 +159,18 @@ export type FilterOperator =
 
 export type FilterLogic = "and" | "or";
 
+export interface FilterGroup {
+  id: string;
+  logic: FilterLogic;
+  children: FilterNode[];
+}
+
+export type FilterNode = FilterCondition | FilterGroup;
+
+export function isFilterGroup(node: FilterNode): node is FilterGroup {
+  return "children" in node && Array.isArray((node as FilterGroup).children);
+}
+
 // ─── Sorting ────────────────────────────────────────────────────────────────
 
 export interface SortConfig {
@@ -187,7 +199,7 @@ export interface ViewPreset {
   id: string;
   name: string;
   description?: string;
-  filters?: FilterCondition[];
+  filters?: FilterNode[];
   filterLogic?: FilterLogic;
   sorting?: SortConfig[];
   grouping?: GroupConfig[];
@@ -201,7 +213,7 @@ export interface GridState {
   columnVisibility: Record<string, boolean>;
   columnOrder: string[];
   columnSizing: Record<string, number>;
-  filters: FilterCondition[];
+  filters: FilterNode[];
   filterLogic: FilterLogic;
   sorting: SortConfig[];
   grouping: GroupConfig[];
