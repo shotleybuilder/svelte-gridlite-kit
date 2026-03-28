@@ -691,7 +691,6 @@
 		background: #f9fafb;
 		border-radius: 0.375rem;
 		min-width: 0;
-		overflow: hidden;
 	}
 
 	.field-picker-wrapper {
@@ -839,6 +838,7 @@
 
 	.operator-select {
 		flex: 0.8;
+		width: 0;
 		min-width: 0;
 	}
 
@@ -855,6 +855,7 @@
 
 	.value-input {
 		flex: 1;
+		width: 0;
 		min-width: 0;
 	}
 

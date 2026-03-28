@@ -1,11 +1,17 @@
 # Changelog
 
+## 0.4.16 — 2026-03-28
+
+### Fixed
+
+- **Filter dropdown regression** — The `overflow: hidden` fix from 0.4.15 clipped the column picker and value suggestion dropdowns. Replaced with `width: 0` on flex inputs/selects so they yield space to the remove button without clipping positioned descendants (#20)
+
 ## 0.4.15 — 2026-03-28
 
 ### Fixed
 
 - **JSONB filter type errors** — Context menu "Filter by value" on JSONB cells now uses `jsonb_has_key`/`jsonb_not_has_key` operators instead of `equals`/`not_equals`, which caused "invalid input syntax for type json". `is_empty`/`is_not_empty` operators now use `::text` cast so they work on JSONB columns. JSONB `?` operator params cast to `::text` for type safety (#20)
-- **Filter remove button visibility** — The × button to remove a filter condition was hidden behind the value input. Added `overflow: hidden` on the condition row so flex children respect container bounds. Restyled as a clean × character. Filter panel capped at `max-width: calc(100vw - 2rem)` (#20)
+- **Filter remove button visibility** — The × button to remove a filter condition was hidden behind the value input. Restyled as a clean × character. Filter panel capped at `max-width: calc(100vw - 2rem)` (#20)
 
 ## 0.4.14 — 2026-03-28
 
