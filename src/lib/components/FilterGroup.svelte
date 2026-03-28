@@ -66,7 +66,19 @@
 		try {
 			const fromClause = resolveFrom(table || undefined, source || undefined);
 			const quotedCol = quoteIdentifier(columnName, allowedColumns);
-			const sql = `SELECT DISTINCT ${quotedCol}::TEXT AS val FROM ${fromClause} WHERE ${quotedCol} IS NOT NULL ORDER BY val LIMIT 200`;
+
+			// For JSONB columns, extract individual keys instead of whole JSON objects
+			const col = columns.find((c) => c.name === columnName);
+			const cfg = columnConfigs.find((c) => c.name === columnName);
+			const dataType = cfg?.dataType ?? col?.dataType;
+
+			let sql: string;
+			if (dataType === 'json') {
+				sql = `SELECT DISTINCT jsonb_object_keys(${quotedCol}) AS val FROM ${fromClause} WHERE ${quotedCol} IS NOT NULL ORDER BY val LIMIT 200`;
+			} else {
+				sql = `SELECT DISTINCT ${quotedCol}::TEXT AS val FROM ${fromClause} WHERE ${quotedCol} IS NOT NULL ORDER BY val LIMIT 200`;
+			}
+
 			const result = await db.query<{ val: string }>(sql);
 			const values = result.rows.map((r) => r.val);
 			columnValuesCache.set(columnName, values);

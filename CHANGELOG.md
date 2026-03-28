@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.14 — 2026-03-28
+
+### Fixed
+
+- **JSONB filter suggestions show individual keys instead of raw JSON objects** — For columns with `json` data type (e.g. multi-select fields stored as JSONB), filter value suggestions now use `SELECT DISTINCT jsonb_object_keys(col)` to extract individual keys rather than `SELECT DISTINCT col::TEXT` which returned whole serialised JSON objects. Affects both `FilterBar.svelte` and `FilterGroup.svelte` (#20)
+
 ## 0.4.13 — 2026-03-28
 
 ### Added
