@@ -118,7 +118,13 @@ export interface ColumnConfig {
 }
 
 /** Column data type — drives filter operator selection and value input rendering */
-export type ColumnDataType = "text" | "number" | "date" | "boolean" | "select";
+export type ColumnDataType =
+  | "text"
+  | "number"
+  | "date"
+  | "boolean"
+  | "select"
+  | "json";
 
 /** Schema-introspected column metadata (internal, from information_schema) */
 export interface ColumnMetadata {
@@ -155,7 +161,10 @@ export type FilterOperator =
   | "less_or_equal"
   // Date operators
   | "is_before"
-  | "is_after";
+  | "is_after"
+  // JSONB operators
+  | "jsonb_has_key"
+  | "jsonb_not_has_key";
 
 export type FilterLogic = "and" | "or";
 

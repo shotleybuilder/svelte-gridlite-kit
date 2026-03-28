@@ -189,6 +189,16 @@ function buildConditionSQL(
     case "is_after":
       return { sql: `${quotedCol} > ${p()}`, params: [condition.value] };
 
+    // JSONB operators
+    case "jsonb_has_key":
+      return { sql: `${quotedCol} ? ${p()}`, params: [condition.value] };
+
+    case "jsonb_not_has_key":
+      return {
+        sql: `NOT (${quotedCol} ? ${p()})`,
+        params: [condition.value],
+      };
+
     default:
       throw new Error(
         `Unknown filter operator: ${(condition as FilterCondition).operator}`,

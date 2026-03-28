@@ -52,7 +52,12 @@ export function mapPostgresType(postgresType: string): ColumnDataType {
     return "boolean";
   }
 
-  // Everything else is text (varchar, char, text, json, jsonb, uuid, etc.)
+  // JSON types
+  if (t === "json" || t === "jsonb") {
+    return "json";
+  }
+
+  // Everything else is text (varchar, char, text, uuid, etc.)
   return "text";
 }
 
@@ -84,6 +89,9 @@ const OID_MAP: Record<number, ColumnDataType> = {
   1184: "date", // timestamp with time zone
   1186: "date", // interval
   1266: "date", // time with time zone
+  // JSON
+  114: "json", // json
+  3802: "json", // jsonb
 };
 
 /**

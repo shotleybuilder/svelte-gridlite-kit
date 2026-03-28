@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.12 — 2026-03-28
+
+### Added
+
+- **JSONB key containment filter operators** — New `jsonb_has_key` and `jsonb_not_has_key` filter operators generate PostgreSQL `?` operator SQL (`"col" ? $1` / `NOT ("col" ? $1)`). Added `"json"` to `ColumnDataType` with automatic detection for `json`/`jsonb` columns via schema introspection and OID mapping. The FilterBar shows "has key" and "does not have key" operators for JSON columns (#18)
+
 ## 0.4.11 — 2026-03-28
 
 ### Added

@@ -165,6 +165,41 @@ describe("buildWhereClause — date operators", () => {
   });
 });
 
+// ─── buildWhereClause — JSONB operators ─────────────────────────────────────
+
+describe("buildWhereClause — JSONB operators", () => {
+  it("jsonb_has_key", () => {
+    const result = buildWhereClause([fc("data", "jsonb_has_key", "Making")]);
+    expect(result.sql).toBe('WHERE "data" ? $1');
+    expect(result.params).toEqual(["Making"]);
+  });
+
+  it("jsonb_not_has_key", () => {
+    const result = buildWhereClause([
+      fc("data", "jsonb_not_has_key", "Making"),
+    ]);
+    expect(result.sql).toBe('WHERE NOT ("data" ? $1)');
+    expect(result.params).toEqual(["Making"]);
+  });
+
+  it("jsonb_has_key combined with other conditions", () => {
+    const result = buildWhereClause([
+      fc("active", "equals", true),
+      fc("tags", "jsonb_has_key", "urgent"),
+    ]);
+    expect(result.sql).toBe('WHERE "active" = $1 AND "tags" ? $2');
+    expect(result.params).toEqual([true, "urgent"]);
+  });
+
+  it("jsonb_has_key parameterizes value (SQL injection safe)", () => {
+    const malicious = "'; DROP TABLE users;--";
+    const result = buildWhereClause([fc("data", "jsonb_has_key", malicious)]);
+    expect(result.sql).toBe('WHERE "data" ? $1');
+    expect(result.params).toEqual([malicious]);
+    expect(result.sql).not.toContain(malicious);
+  });
+});
+
 // ─── buildWhereClause — Logic and edge cases ────────────────────────────────
 
 describe("buildWhereClause — compound and edge cases", () => {

@@ -42,8 +42,11 @@ describe("mapPostgresType", () => {
     expect(mapPostgresType("character")).toBe("text");
     expect(mapPostgresType("text")).toBe("text");
     expect(mapPostgresType("uuid")).toBe("text");
-    expect(mapPostgresType("json")).toBe("text");
-    expect(mapPostgresType("jsonb")).toBe("text");
+  });
+
+  it("maps json types", () => {
+    expect(mapPostgresType("json")).toBe("json");
+    expect(mapPostgresType("jsonb")).toBe("json");
   });
 
   it("is case-insensitive", () => {
@@ -77,6 +80,11 @@ describe("mapOidToDataType", () => {
 
   it("maps boolean OID", () => {
     expect(mapOidToDataType(16)).toBe("boolean");
+  });
+
+  it("maps json OIDs", () => {
+    expect(mapOidToDataType(114)).toBe("json"); // json
+    expect(mapOidToDataType(3802)).toBe("json"); // jsonb
   });
 
   it("returns text for unknown OIDs", () => {
