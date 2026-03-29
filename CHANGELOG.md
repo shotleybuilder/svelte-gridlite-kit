@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.5.0 — 2026-03-29
+
+### Breaking Changes
+
+- **Monorepo with pluggable adapter architecture** — The project is now a pnpm workspaces monorepo with three packages: `@shotleybuilder/svelte-gridlite-kit` (core), `@shotleybuilder/gridlite-adapter-pglite` (PGLite adapter), and a private demo app (#23)
+- **`adapter` prop replaces `db`/`table`/`query`** — `GridLite` now accepts a single `adapter: QueryAdapter` prop instead of `db: PGliteWithLive`, `table: string`, and `query: string`
+- **PGLite-specific code moved to separate package** — `createLiveQueryStore`, `introspectTable`, `getColumnNames`, `runMigrations`, `saveView`, `loadView`, `saveColumnState`, `loadColumnState`, and all other PGLite-specific functions are now exported from `@shotleybuilder/gridlite-adapter-pglite` instead of the core package
+- **Core has no `@electric-sql/pglite` runtime dependency** — PGLite is now a peer dependency of the adapter package only
+
+### Added
+
+- **`QueryAdapter` interface** (`packages/core/src/lib/adapter.ts`) — Database-agnostic contract for grid data operations: `init()`, `introspect()`, `createLiveQuery()`, `execute()`, `loadColumnState()`, `saveColumnState()`, `getDistinctValues()`, `getNumericRange()`
+- **`LiveQueryHandle` / `LiveQueryState` interfaces** — Svelte store-compatible reactive query subscription types
+- **`PGLiteAdapter` class** (`packages/pglite/src/adapter.ts`) — Full implementation of `QueryAdapter` for PGLite, created via `createPGLiteAdapter({ db, table })` or `createPGLiteAdapter({ db, query })`
+- **26 new adapter integration tests** in the pglite package
+
+### Migration from 0.4.x
+
+```diff
+- import { GridLite } from '@shotleybuilder/svelte-gridlite-kit';
++ import { GridLite } from '@shotleybuilder/svelte-gridlite-kit';
++ import { createPGLiteAdapter } from '@shotleybuilder/gridlite-adapter-pglite';
+
++ const adapter = createPGLiteAdapter({ db, table: 'employees' });
+
+- <GridLite {db} table="employees" ... />
++ <GridLite {adapter} ... />
+```
+
+For raw query mode:
+```diff
+- <GridLite {db} query="SELECT * FROM ..." ... />
++ const adapter = createPGLiteAdapter({ db, query: 'SELECT * FROM ...' });
++ <GridLite {adapter} ... />
+```
+
 ## 0.4.18 — 2026-03-29
 
 ### Fixed
