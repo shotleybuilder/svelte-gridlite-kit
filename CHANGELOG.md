@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.17 — 2026-03-29
+
+### Added
+
+- **`applyConfig()` batch API** — New method to set filters, sorting, grouping, global search, and pagination atomically in a single call, triggering one `rebuildQuery()` instead of multiple independent rebuilds. Prevents async race conditions when switching views programmatically (#21)
+
 ## 0.4.16 — 2026-03-28
 
 ### Fixed

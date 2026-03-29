@@ -227,6 +227,18 @@ export interface ViewPreset {
   columnOrder?: string[];
 }
 
+// ─── Apply Config (batch state update) ──────────────────────────────────────
+
+export interface ApplyConfigOptions {
+  filters?: FilterNode[];
+  filterLogic?: FilterLogic;
+  sorting?: SortConfig[];
+  grouping?: GroupConfig[];
+  globalFilter?: string;
+  page?: number;
+  pageSize?: number;
+}
+
 // ─── Grid State ─────────────────────────────────────────────────────────────
 
 export interface GridState {

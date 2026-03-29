@@ -38,6 +38,7 @@ export type {
   ColumnSpacing,
   ParameterizedQuery,
   ToolbarLayout,
+  ApplyConfigOptions,
 } from "./types.js";
 
 export { isFilterGroup, isValidInterval } from "./types.js";

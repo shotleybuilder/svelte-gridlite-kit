@@ -12,6 +12,7 @@
 		GridConfig,
 		GridFeatures,
 		GridState,
+		ApplyConfigOptions,
 		FilterCondition,
 		FilterNode,
 		FilterLogic,
@@ -655,6 +656,33 @@
 	export function setGlobalFilter(search: string) {
 		globalFilter = search;
 		page = 0;
+		rebuildQuery();
+		notifyStateChange();
+	}
+
+	/**
+	 * Apply multiple state changes atomically with a single rebuildQuery().
+	 * Prevents race conditions when switching views that change filters,
+	 * sorting, and grouping simultaneously.
+	 */
+	export function applyConfig(options: ApplyConfigOptions) {
+		if (options.filters !== undefined) filters = options.filters;
+		if (options.filterLogic !== undefined) filterLogic = options.filterLogic;
+		if (options.sorting !== undefined) sorting = options.sorting;
+		if (options.grouping !== undefined) {
+			const prevValid = grouping.filter((g) => g.column !== '');
+			grouping = options.grouping;
+			const nowValid = options.grouping.filter((g) => g.column !== '');
+			const changed = prevValid.length !== nowValid.length ||
+				prevValid.some((g, i) => g.column !== nowValid[i]?.column);
+			if (changed) {
+				expandedGroups = new Set();
+				groupData = [];
+			}
+		}
+		if (options.globalFilter !== undefined) globalFilter = options.globalFilter;
+		if (options.pageSize !== undefined) pageSize = options.pageSize;
+		page = options.page ?? 0;
 		rebuildQuery();
 		notifyStateChange();
 	}
