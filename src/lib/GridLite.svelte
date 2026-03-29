@@ -319,7 +319,8 @@
 			return;
 		}
 
-		if (isGrouped) {
+		const currentlyGrouped = grouping.filter((g) => g.column !== '').length > 0;
+		if (currentlyGrouped) {
 			// Grouped mode — use two-query strategy
 			await rebuildGroupedQuery();
 			return;

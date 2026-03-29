@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.18 — 2026-03-29
+
+### Fixed
+
+- **Stale `isGrouped` reactive when removing grouping** — `rebuildQuery()` now computes grouped state from the `grouping` variable directly instead of the Svelte `$: isGrouped` reactive, which is stale during the same synchronous tick. Previously, `setGrouping([])` or `applyConfig()` would see `isGrouped = true` (stale), enter the grouped path, hit an early return, and leave the grid showing stale data (#22)
+
 ## 0.4.17 — 2026-03-29
 
 ### Added
