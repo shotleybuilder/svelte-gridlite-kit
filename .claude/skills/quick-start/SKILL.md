@@ -1,18 +1,24 @@
 ---
 name: gridlite-quick-start
-description: "Minimal setup for svelte-gridlite-kit: install, PGLite init, basic GridLite component, SvelteKit SSR/Vite config. Use when integrating GridLite into a new project."
+description: "Minimal setup for svelte-gridlite-kit: install, adapter init (PGLite or TanStack DB), basic GridLite component, SvelteKit SSR/Vite config. Use when integrating GridLite into a new project."
 user-invocable: true
 ---
 
 # GridLite Quick Start
 
-## Install
+GridLite uses a pluggable adapter architecture. Choose **PGLite** (SQL in WASM) or **TanStack DB** (reactive in-memory collections).
+
+---
+
+## Option A: PGLite Adapter
+
+### Install
 
 ```bash
-npm install @shotleybuilder/svelte-gridlite-kit @electric-sql/pglite
+pnpm add @shotleybuilder/svelte-gridlite-kit @shotleybuilder/gridlite-adapter-pglite @electric-sql/pglite
 ```
 
-## SvelteKit Config
+### SvelteKit Config
 
 Disable SSR for pages using PGLite:
 
@@ -31,25 +37,23 @@ export default defineConfig({
 });
 ```
 
-## Minimal Component
+### Minimal Component
 
 ```svelte
 <script lang="ts">
   import { onMount } from 'svelte';
   import { PGlite } from '@electric-sql/pglite';
   import { live } from '@electric-sql/pglite/live';
-  import type { PGliteWithLive } from '@shotleybuilder/svelte-gridlite-kit';
   import { GridLite } from '@shotleybuilder/svelte-gridlite-kit';
+  import { createPGLiteAdapter } from '@shotleybuilder/gridlite-adapter-pglite';
   import '@shotleybuilder/svelte-gridlite-kit/styles';
+  import type { QueryAdapter } from '@shotleybuilder/svelte-gridlite-kit/adapter';
 
-  let db: PGliteWithLive | null = null;
-  let ready = false;
+  let adapter: QueryAdapter | null = null;
 
   onMount(async () => {
-    // 1. Create PGLite instance with live extension
-    db = new PGlite({ extensions: { live } }) as PGliteWithLive;
+    const db = new PGlite({ extensions: { live } });
 
-    // 2. Create your table
     await db.exec(`
       CREATE TABLE contacts (
         id SERIAL PRIMARY KEY,
@@ -59,21 +63,19 @@ export default defineConfig({
       )
     `);
 
-    // 3. Seed data (or load from API)
     await db.exec(`
       INSERT INTO contacts (name, email, company) VALUES
       ('Alice', 'alice@example.com', 'Acme'),
       ('Bob', 'bob@example.com', 'Globex')
     `);
 
-    ready = true;
+    adapter = createPGLiteAdapter({ db, table: 'contacts' });
   });
 </script>
 
-{#if ready && db}
+{#if adapter}
   <GridLite
-    {db}
-    table="contacts"
+    {adapter}
     config={{ id: 'my-grid' }}
     features={{
       filtering: true,
@@ -85,14 +87,15 @@ export default defineConfig({
 {/if}
 ```
 
-## What Happens Automatically
+### What Happens Automatically (PGLite)
 
 - Column names and types detected from `information_schema`
 - Live query subscribes to table changes
 - Pagination defaults to 25 rows/page
-- All filter operators available based on detected column types
+- Filter operators available based on detected column types
+- View/column state persisted in PGLite config tables
 
-## PGLite Persistence
+### PGLite Persistence
 
 ```typescript
 // Ephemeral (in-memory, lost on refresh)
@@ -102,9 +105,106 @@ const db = new PGlite({ extensions: { live } });
 const db = new PGlite('idb://my-app', { extensions: { live } });
 ```
 
+---
+
+## Option B: TanStack DB Adapter
+
+### Install
+
+```bash
+pnpm add @shotleybuilder/svelte-gridlite-kit @shotleybuilder/gridlite-adapter-tanstack-db @tanstack/db
+```
+
+### SvelteKit Config
+
+```typescript
+// src/routes/+layout.ts (or +page.ts)
+export const ssr = false;
+```
+
+### Minimal Component
+
+```svelte
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { createCollection, localOnlyCollectionOptions } from '@tanstack/db';
+  import { GridLite } from '@shotleybuilder/svelte-gridlite-kit';
+  import { createTanStackDBAdapter } from '@shotleybuilder/gridlite-adapter-tanstack-db';
+  import '@shotleybuilder/svelte-gridlite-kit/styles';
+  import type { QueryAdapter } from '@shotleybuilder/svelte-gridlite-kit/adapter';
+
+  let adapter: QueryAdapter | null = null;
+
+  onMount(async () => {
+    const collection = createCollection(
+      localOnlyCollectionOptions({
+        id: 'contacts',
+        getKey: (item) => item.id,
+        initialData: [
+          { id: 1, name: 'Alice', email: 'alice@example.com', company: 'Acme' },
+          { id: 2, name: 'Bob', email: 'bob@example.com', company: 'Globex' },
+        ],
+      }),
+    );
+
+    adapter = createTanStackDBAdapter({
+      collection,
+      columns: [
+        { name: 'id', dataType: 'number', postgresType: 'unknown', nullable: false, hasDefault: false },
+        { name: 'name', dataType: 'text', postgresType: 'unknown', nullable: false, hasDefault: false },
+        { name: 'email', dataType: 'text', postgresType: 'unknown', nullable: true, hasDefault: false },
+        { name: 'company', dataType: 'text', postgresType: 'unknown', nullable: true, hasDefault: false },
+      ],
+    });
+  });
+</script>
+
+{#if adapter}
+  <GridLite
+    {adapter}
+    config={{ id: 'my-grid' }}
+    features={{
+      filtering: true,
+      sorting: true,
+      pagination: true,
+      globalSearch: true
+    }}
+  />
+{/if}
+```
+
+### Using Zod Schema (Alternative to Explicit Columns)
+
+```typescript
+import { z } from 'zod';
+
+const contactSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  email: z.string().nullable(),
+  company: z.string().nullable(),
+});
+
+adapter = createTanStackDBAdapter({
+  collection,
+  schema: contactSchema,
+});
+```
+
+### What Happens Automatically (TanStack DB)
+
+- Columns derived from explicit metadata or Zod schema
+- Live query via `createLiveQueryCollection` reacts to collection changes
+- Pagination defaults to 25 rows/page
+- Filter operators translate to TanStack DB query builder expressions
+- View/column state stored in-memory (or use `LocalStorageProvider` for persistence)
+
+---
+
 ## Common Mistakes
 
-1. **Forgetting `ssr = false`** — PGLite needs browser APIs (WASM, IndexedDB)
-2. **Missing `optimizeDeps.exclude`** — Vite tries to pre-bundle PGLite and fails
-3. **Not waiting for `ready`** — GridLite needs the PGLite instance fully initialized
-4. **Forgetting the `live` extension** — GridLite requires `live.query()` for reactivity
+1. **Forgetting `ssr = false`** — Both PGLite (WASM) and TanStack DB need browser APIs
+2. **Missing `optimizeDeps.exclude`** — Only needed for PGLite (Vite tries to pre-bundle WASM)
+3. **Not waiting for adapter** — GridLite needs the adapter instance fully created before rendering
+4. **PGLite: forgetting the `live` extension** — Required for reactive queries
+5. **TanStack DB: omitting both `columns` and `schema`** — Adapter needs column metadata from one or the other

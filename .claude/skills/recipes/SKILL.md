@@ -12,6 +12,7 @@ Use `format()` for simple text-only formatting:
 
 ```svelte
 <GridLite
+  {adapter}
   config={{
     id: 'grid',
     columns: [
@@ -33,7 +34,7 @@ Use `format()` for simple text-only formatting:
 Use `<slot name="cell">` for badges, links, buttons, or any HTML:
 
 ```svelte
-<GridLite {db} table="employees" config={{ id: 'grid' }}>
+<GridLite {adapter} config={{ id: 'grid' }}>
   <svelte:fragment slot="cell" let:value let:row let:column>
     {#if column === 'status'}
       <span class="badge" class:active={value === 'active'}>
@@ -57,7 +58,7 @@ The cell slot receives `value` (cell value), `row` (full row object), and `colum
 Inject buttons into the toolbar with `toolbar-start` and `toolbar-end` slots:
 
 ```svelte
-<GridLite {db} table="employees" config={{ id: 'grid' }}>
+<GridLite {adapter} config={{ id: 'grid' }}>
   <svelte:fragment slot="toolbar-start">
     <button on:click={saveView}>Save View</button>
   </svelte:fragment>
@@ -74,6 +75,7 @@ Works with all `toolbarLayout` presets including `aggrid`.
 
 ```svelte
 <GridLite
+  {adapter}
   onRowClick={(row) => {
     selectedEmployee = row;
     showSidebar = true;
@@ -87,6 +89,7 @@ Default (auto-generated key-value layout):
 
 ```svelte
 <GridLite
+  {adapter}
   features={{ rowDetail: true }}
   config={{
     id: 'grid',
@@ -101,7 +104,7 @@ Default (auto-generated key-value layout):
 Custom row detail content via `row-detail` slot:
 
 ```svelte
-<GridLite {db} table="employees" config={{ id: 'grid' }} features={{ rowDetail: true }}>
+<GridLite {adapter} config={{ id: 'grid' }} features={{ rowDetail: true }}>
   <div slot="row-detail" let:row let:close>
     <h3>{row.name}</h3>
     <dl>
@@ -115,59 +118,99 @@ Custom row detail content via `row-detail` slot:
 
 Click any row to open a detail modal with prev/next navigation.
 
-## Raw SQL Query Mode
+## Raw SQL Query Mode (PGLite Only)
 
-Use `query` instead of `table` for joins, CTEs, or custom SQL:
+Use `query` instead of `table` when creating a PGLite adapter for joins, CTEs, or custom SQL:
 
-```svelte
-<GridLite
-  {db}
-  query={`
+```typescript
+import { createPGLiteAdapter } from '@shotleybuilder/gridlite-adapter-pglite';
+
+const adapter = createPGLiteAdapter({
+  db,
+  query: `
     SELECT e.name, e.salary, d.name AS department_name
     FROM employees e
     JOIN departments d ON e.department_id = d.id
     WHERE e.active = true
-    ORDER BY e.name
-  `}
-  config={{ id: 'joined-grid' }}
-/>
+  `,
+});
 ```
 
-**Note:** Raw query mode disables FilterBar, SortBar, GroupBar, and global search (no table to introspect). Pagination still works if the query supports it.
+```svelte
+<GridLite {adapter} config={{ id: 'joined-grid' }} />
+```
+
+**Note:** Raw query mode disables FilterBar, SortBar, GroupBar, and global search (no table to introspect). Pagination still works.
+
+## TanStack DB with Zod Schema
+
+Use a Zod schema instead of explicit columns for automatic type derivation:
+
+```typescript
+import { z } from 'zod';
+import { createCollection, localOnlyCollectionOptions } from '@tanstack/db';
+import { createTanStackDBAdapter } from '@shotleybuilder/gridlite-adapter-tanstack-db';
+
+const employeeSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  department: z.string(),
+  salary: z.number(),
+  active: z.boolean(),
+  hired_date: z.string(),
+});
+
+const collection = createCollection(
+  localOnlyCollectionOptions({
+    id: 'employees',
+    getKey: (item) => item.id,
+    initialData: employeesFromApi,
+  }),
+);
+
+const adapter = createTanStackDBAdapter({
+  collection,
+  schema: employeeSchema,
+});
+```
+
+## TanStack DB with LocalStorage Persistence
+
+Persist view/column state across page reloads using `LocalStorageProvider`:
+
+```typescript
+import { createTanStackDBAdapter, LocalStorageProvider } from '@shotleybuilder/gridlite-adapter-tanstack-db';
+
+const adapter = createTanStackDBAdapter({
+  collection,
+  columns: [...],
+  storage: new LocalStorageProvider(),
+});
+```
+
+View names, column visibility, widths, and ordering persist to `localStorage` under namespaced keys.
 
 ## Connecting to Existing PGLite Instance
 
 ```svelte
 <script>
-  // Shared PGLite instance (e.g., from a store or context)
   import { getContext } from 'svelte';
-  import type { PGliteWithLive } from '@shotleybuilder/svelte-gridlite-kit';
+  import { createPGLiteAdapter } from '@shotleybuilder/gridlite-adapter-pglite';
 
-  const db = getContext<PGliteWithLive>('pglite');
+  const db = getContext('pglite');
+  const adapter = createPGLiteAdapter({ db, table: 'my_table' });
 </script>
 
-<GridLite {db} table="my_table" config={{ id: 'grid' }} />
+<GridLite {adapter} config={{ id: 'grid' }} />
 ```
 
-## Persistent Database (IndexedDB)
-
-```typescript
-import { PGlite } from '@electric-sql/pglite';
-import { live } from '@electric-sql/pglite/live';
-
-// Data persists across page refreshes
-const db = new PGlite('idb://my-app-db', { extensions: { live } });
-```
-
-## External Data Loading
+## External Data Loading (PGLite)
 
 ```typescript
 onMount(async () => {
-  db = new PGlite({ extensions: { live } });
-
+  const db = new PGlite({ extensions: { live } });
   await db.exec(`CREATE TABLE products (...)`);
 
-  // Fetch from API and insert into PGLite
   const response = await fetch('/api/products');
   const products = await response.json();
 
@@ -178,7 +221,7 @@ onMount(async () => {
     );
   }
 
-  ready = true;
+  adapter = createPGLiteAdapter({ db, table: 'products' });
 });
 ```
 
@@ -205,18 +248,8 @@ const columns = [
 ```typescript
 import { fuzzySearch } from '@shotleybuilder/svelte-gridlite-kit';
 
-// Search an array of items (useful outside GridLite)
 const results = fuzzySearch(items, 'query', {
   keys: ['name', 'description'],
   threshold: 0.3
 });
-```
-
-## Schema Introspection
-
-```typescript
-import { introspectTable } from '@shotleybuilder/svelte-gridlite-kit';
-
-const columns = await introspectTable(db, 'employees');
-// [{ name: 'id', dataType: 'number', postgresType: 'integer', ... }, ...]
 ```

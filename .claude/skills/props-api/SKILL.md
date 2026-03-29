@@ -10,9 +10,7 @@ user-invocable: true
 
 | Prop | Type | Default | Description |
 |---|---|---|---|
-| `db` | `PGliteWithLive` | required | PGLite instance with live extension |
-| `table` | `string` | — | Table name to query (mutually exclusive with `query`) |
-| `query` | `string` | — | Raw SQL query (mutually exclusive with `table`) |
+| `adapter` | `QueryAdapter` | required | Database adapter (PGLite or TanStack DB) |
 | `config` | `GridConfig` | — | Grid configuration object |
 | `features` | `GridFeatures` | `{}` | Feature toggle flags |
 | `classNames` | `Partial<ClassNameMap>` | `{}` | Custom CSS class overrides |
@@ -21,6 +19,22 @@ user-invocable: true
 | `toolbarLayout` | `ToolbarLayout` | `'airtable'` | Toolbar arrangement preset |
 | `onRowClick` | `(row) => void` | — | Row click callback |
 | `onStateChange` | `(state) => void` | — | State change callback |
+
+## Creating an Adapter
+
+**PGLite adapter:**
+```typescript
+import { createPGLiteAdapter } from '@shotleybuilder/gridlite-adapter-pglite';
+const adapter = createPGLiteAdapter({ db, table: 'employees' });
+// or: createPGLiteAdapter({ db, query: 'SELECT ...' })
+```
+
+**TanStack DB adapter:**
+```typescript
+import { createTanStackDBAdapter } from '@shotleybuilder/gridlite-adapter-tanstack-db';
+const adapter = createTanStackDBAdapter({ collection, columns: [...] });
+// or: createTanStackDBAdapter({ collection, schema: zodSchema })
+```
 
 ## GridConfig
 
@@ -107,7 +121,7 @@ GridLite exposes named slots for rich content rendering:
 **Cell slot** — Overrides all cell rendering. Use `column` to branch per-column:
 
 ```svelte
-<GridLite {db} table="products" config={...}>
+<GridLite {adapter} config={...}>
   <svelte:fragment slot="cell" let:value let:row let:column>
     {#if column === 'status'}
       <span class="badge">{value}</span>
@@ -123,7 +137,7 @@ When no `cell` slot is provided, `format()` functions are used as fallback, then
 **Toolbar slots** — Inject custom buttons into both standard and aggrid toolbar layouts:
 
 ```svelte
-<GridLite {db} table="products" config={...}>
+<GridLite {adapter} config={...}>
   <svelte:fragment slot="toolbar-start">
     <button on:click={saveView}>Save View</button>
   </svelte:fragment>
@@ -136,7 +150,7 @@ When no `cell` slot is provided, `format()` functions are used as fallback, then
 **Row detail slot** — Override the default key-value detail modal. Falls back to built-in layout when not provided:
 
 ```svelte
-<GridLite {db} table="products" config={...} features={{ rowDetail: true }}>
+<GridLite {adapter} config={...} features={{ rowDetail: true }}>
   <div slot="row-detail" let:row let:close>
     <h3>{row.name}</h3>
     <p>Price: ${row.price}</p>

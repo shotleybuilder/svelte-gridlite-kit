@@ -11,7 +11,7 @@ user-invocable: true
 ### Enable
 
 ```svelte
-<GridLite {db} table="employees" features={{ sorting: true }} />
+<GridLite {adapter} features={{ sorting: true }} />
 ```
 
 ### Default Sort on Load
@@ -55,7 +55,7 @@ ORDER BY "name" ASC, "salary" DESC
 ### Enable
 
 ```svelte
-<GridLite {db} table="employees" features={{ grouping: true }} />
+<GridLite {adapter} features={{ grouping: true }} />
 ```
 
 ### Default Grouping on Load
@@ -121,7 +121,7 @@ interface AggregationConfig {
 2. **Grouped columns** are hidden from headers and child rows
 3. **Count badge** shows number of rows per group
 4. **Aggregation pills** show computed values (Avg Salary: 72,500)
-5. **Expand/collapse** loads children lazily via `db.query()`
+5. **Expand/collapse** loads children lazily via the adapter
 6. **Pagination** applies to group count, not row count
 
 ### SQL Strategy

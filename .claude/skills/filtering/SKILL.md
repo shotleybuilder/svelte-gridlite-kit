@@ -10,8 +10,7 @@ user-invocable: true
 
 ```svelte
 <GridLite
-  {db}
-  table="employees"
+  {adapter}
   features={{ filtering: true }}
 />
 ```
@@ -32,8 +31,7 @@ Operators are auto-selected based on column type (detected from schema):
 
 ```svelte
 <GridLite
-  {db}
-  table="employees"
+  {adapter}
   config={{
     id: 'emp-grid',
     defaultFilters: [
