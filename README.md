@@ -1,17 +1,22 @@
 # svelte-gridlite-kit
 
-A SQL-native data grid component library for Svelte and SvelteKit, powered by [PGLite](https://pglite.dev/) (Postgres in the browser via WASM).
+A SQL-native data grid component library for Svelte and SvelteKit with pluggable database adapters.
 
-Where traditional table libraries operate on in-memory JavaScript arrays, svelte-gridlite-kit treats a real SQL database as the table engine. Filtering becomes `WHERE` clauses. Sorting becomes `ORDER BY`. Grouping becomes `GROUP BY` with real aggregation functions. Config and view state persist in PGLite tables backed by IndexedDB — no localStorage serialization.
+Where traditional table libraries operate on in-memory JavaScript arrays, svelte-gridlite-kit treats a real SQL database as the table engine. Filtering becomes `WHERE` clauses. Sorting becomes `ORDER BY`. Grouping becomes `GROUP BY` with real aggregation functions. Config and view state persist in database tables — no localStorage serialization.
 
 ## Status
 
-**Beta.** Published to npm as `@shotleybuilder/svelte-gridlite-kit`.
+**Beta.** Monorepo with pluggable adapter architecture.
+
+| Package | npm |
+|---|---|
+| `@shotleybuilder/svelte-gridlite-kit` | Core grid component + query builder |
+| `@shotleybuilder/gridlite-adapter-pglite` | PGLite adapter (Postgres in WASM) |
 
 ## Installation
 
 ```bash
-npm install @shotleybuilder/svelte-gridlite-kit @electric-sql/pglite
+pnpm add @shotleybuilder/svelte-gridlite-kit @shotleybuilder/gridlite-adapter-pglite @electric-sql/pglite
 ```
 
 ## Quick Start
@@ -23,12 +28,14 @@ npm install @shotleybuilder/svelte-gridlite-kit @electric-sql/pglite
   import { live } from '@electric-sql/pglite/live';
   import { GridLite } from '@shotleybuilder/svelte-gridlite-kit';
   import '@shotleybuilder/svelte-gridlite-kit/styles';
+  import { createPGLiteAdapter } from '@shotleybuilder/gridlite-adapter-pglite';
+  import type { QueryAdapter } from '@shotleybuilder/svelte-gridlite-kit';
 
-  let db = null;
+  let adapter: QueryAdapter | null = null;
   let ready = false;
 
   onMount(async () => {
-    db = new PGlite({ extensions: { live } });
+    const db = new PGlite({ extensions: { live } });
 
     await db.exec(`
       CREATE TABLE IF NOT EXISTS contacts (
@@ -41,14 +48,14 @@ npm install @shotleybuilder/svelte-gridlite-kit @electric-sql/pglite
     `);
 
     // Insert some data...
+    adapter = createPGLiteAdapter({ db, table: 'contacts' });
     ready = true;
   });
 </script>
 
-{#if ready && db}
+{#if ready && adapter}
   <GridLite
-    {db}
-    table="contacts"
+    {adapter}
     config={{
       id: 'my-contacts-grid',
       columns: [
@@ -69,6 +76,11 @@ npm install @shotleybuilder/svelte-gridlite-kit @electric-sql/pglite
     }}
   />
 {/if}
+```
+
+For raw SQL queries (JOINs, CTEs, etc.):
+```typescript
+const adapter = createPGLiteAdapter({ db, query: 'SELECT e.*, d.name AS dept FROM employees e JOIN departments d ON ...' });
 ```
 
 > **SvelteKit note:** PGLite requires browser APIs (WebAssembly, IndexedDB). Disable SSR for pages that use it:
@@ -102,7 +114,7 @@ Structured reference docs for every feature, designed to be both human-readable 
 
 ## Examples
 
-Focused, single-feature demo pages in `src/routes/examples/`:
+Focused, single-feature demo pages in `packages/demo/src/routes/examples/`:
 
 | Route | What it shows |
 |---|---|
@@ -112,7 +124,7 @@ Focused, single-feature demo pages in `src/routes/examples/`:
 | `/examples/custom-cells` | Currency, date, boolean, rating star formatters |
 | `/examples/raw-query` | JOIN, aggregate, CTE queries via `query` prop with full toolbar |
 
-Run `npm run dev` and visit `http://localhost:5173/examples/minimal` to start.
+Run `pnpm dev` and visit `http://localhost:5173/examples/minimal` to start.
 
 ## For AI Agents
 
@@ -142,7 +154,7 @@ See [Architecture](#architecture) below for the full rationale.
 
 ### Core Principle
 
-The component accepts a **PGLite instance + table name** (or a raw SQL query), not a data array. All operations translate to SQL query modifications. PGLite's live queries push reactive updates to the UI.
+The component accepts a **QueryAdapter** (e.g. `createPGLiteAdapter({ db, table })`), not a data array. All operations translate to SQL query modifications. The adapter executes queries and pushes reactive updates to the UI. The core package has no database dependency — adapters are separate packages.
 
 ### How Operations Map to SQL
 
@@ -162,39 +174,35 @@ The component accepts a **PGLite instance + table name** (or a raw SQL query), n
 ### Key Design Decisions
 
 - **No TanStack Table dependency.** The SQL engine IS the table engine.
-- **PGLite is the state store.** Table configs, view presets, column visibility, custom labels, sort/filter state — all stored in PGLite tables, persisted automatically via IndexedDB.
+- **Pluggable adapters.** Core defines a `QueryAdapter` interface. Database-specific code lives in adapter packages (e.g. `@shotleybuilder/gridlite-adapter-pglite`).
+- **Adapter handles state persistence.** Table configs, view presets, column visibility, custom labels — all managed by the adapter.
 - **FilterBar emits SQL.** Postgres operators (regex, `ILIKE`, date math, JSON paths, FTS) are available natively.
-- **Live queries drive reactivity.** PGLite `live.query()` replaces Svelte writable stores for data. UI auto-updates when underlying data changes.
+- **Live queries drive reactivity.** Adapters implement `LiveQueryHandle` for reactive subscriptions. UI auto-updates when underlying data changes.
 - **Column types come from schema introspection**, not data sampling.
-- **ElectricSQL sync is native** for multi-device, offline-first use cases.
 
 ### Project Structure
 
 ```
-src/lib/
-├── GridLite.svelte          # Main component
-├── index.ts                 # Public API exports
-├── types.ts                 # Column metadata, view configs, feature flags
-├── query/
-│   ├── builder.ts           # FilterCondition -> SQL WHERE clause builder
-│   ├── live.ts              # Svelte store wrapper for PGLite live queries
-│   └── schema.ts            # Table schema introspection for column types
-├── state/
-│   ├── views.ts             # View configs stored in PGLite tables
-│   └── migrations.ts        # Schema definitions for config tables
-├── components/
-│   ├── FilterBar.svelte     # Advanced filtering UI
-│   ├── FilterGroup.svelte   # Recursive nested filter group component
-│   ├── GroupBar.svelte      # Multi-level grouping controls
-│   ├── SortBar.svelte       # Sort controls
-│   ├── ColumnMenu.svelte    # Column context menu
-│   ├── CellContextMenu.svelte  # Right-click cell actions
-│   └── RowDetailModal.svelte   # Row detail overlay
-├── utils/
-│   ├── fuzzy.ts             # Fuzzy search with scoring
-│   └── formatters.ts        # Date, currency, number formatters
-└── styles/
-    └── gridlite.css         # Default styles
+packages/
+├── core/src/lib/                    # @shotleybuilder/svelte-gridlite-kit
+│   ├── GridLite.svelte              # Main component (uses adapter prop)
+│   ├── adapter.ts                   # QueryAdapter, LiveQueryHandle interfaces
+│   ├── index.ts                     # Public API exports
+│   ├── types.ts                     # Column metadata, view configs, feature flags
+│   ├── query/
+│   │   ├── builder.ts               # FilterCondition -> SQL WHERE clause builder
+│   │   └── schema.ts                # Pure type-mapping functions only
+│   ├── components/                  # FilterBar, SortBar, GroupBar, etc.
+│   ├── utils/                       # fuzzy.ts, formatters.ts, filters.ts
+│   └── styles/gridlite.css
+├── pglite/src/                      # @shotleybuilder/gridlite-adapter-pglite
+│   ├── adapter.ts                   # PGLiteAdapter class
+│   ├── index.ts                     # Public exports
+│   ├── live.ts                      # Svelte store wrapper for PGLite live queries
+│   ├── schema.ts                    # introspectTable, getColumnNames
+│   ├── migrations.ts                # Config table schema creation
+│   └── views.ts                     # View/column state CRUD
+└── demo/src/routes/                 # Demo app (private)
 ```
 
 ### What Carries Over from svelte-table-kit
@@ -217,21 +225,20 @@ src/lib/
 
 ## Dependencies
 
-| Package | Role |
-|---|---|
-| `@electric-sql/pglite` | Postgres WASM engine (~3MB gzipped) |
-| `svelte` | Reactive UI framework |
-| `@sveltejs/kit` | Dev server and packaging (dev only) |
+| Package | Role | Used by |
+|---|---|---|
+| `svelte` | Reactive UI framework | core |
+| `@sveltejs/kit` | Dev server and packaging (dev only) | core, demo |
+| `@electric-sql/pglite` | Postgres WASM engine (~3MB gzipped) | pglite adapter |
 
 ## Development
 
 ```bash
-npm install          # Install dependencies
-npm run dev          # Start dev server
-npm run build        # Build library
-npm run package      # Package for npm
-npm run check        # Type checking
-npm test             # Run tests
+pnpm install         # Install all workspace dependencies
+pnpm dev             # Start demo dev server
+pnpm build           # Build all packages
+pnpm test:run        # Run all tests (~244)
+pnpm check           # Type checking (svelte-check + tsc)
 ```
 
 ## PGLite Quick Reference
