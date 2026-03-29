@@ -9,6 +9,8 @@ import type {
   FilterNode,
   FilterLogic,
   ViewPreset,
+  SortConfig,
+  GroupConfig,
 } from "./types.js";
 
 // ─── Live Query Handle ──────────────────────────────────────────────────────
@@ -20,7 +22,7 @@ import type {
 export interface LiveQueryHandle<T = Record<string, unknown>> {
   subscribe(callback: (state: LiveQueryState<T>) => void): () => void;
   refresh(): Promise<void>;
-  update(sql: string, params?: unknown[]): Promise<void>;
+  update(query: QueryDescriptor): Promise<void>;
   destroy(): Promise<void>;
 }
 
@@ -40,6 +42,62 @@ export interface ColumnStateEntry {
   width: number | null;
   position: number | null;
   label: string | null;
+}
+
+// ─── Query Descriptors ──────────────────────────────────────────────────────
+//
+// Structured representations of queries that GridLite passes to adapters.
+// Each adapter compiles these into its native query language (SQL, fluent API, etc.).
+// The adapter injects its own table/source and allowedColumns — callers don't need them.
+
+/** Descriptor for a flat SELECT query (live or one-shot). */
+export interface QueryDescriptor {
+  filters?: FilterNode[];
+  filterLogic?: FilterLogic;
+  sorting?: SortConfig[];
+  page?: number;
+  pageSize?: number;
+  globalSearch?: string;
+  searchColumns?: string[];
+}
+
+/** Descriptor for a COUNT(*) query. */
+export interface CountDescriptor {
+  filters?: FilterNode[];
+  filterLogic?: FilterLogic;
+  globalSearch?: string;
+  searchColumns?: string[];
+}
+
+/** Descriptor for a GROUP BY summary query. */
+export interface GroupSummaryDescriptor {
+  grouping: GroupConfig[];
+  filters?: FilterNode[];
+  filterLogic?: FilterLogic;
+  sorting?: SortConfig[];
+  page?: number;
+  pageSize?: number;
+  globalSearch?: string;
+  searchColumns?: string[];
+}
+
+/** Descriptor for counting distinct groups. */
+export interface GroupCountDescriptor {
+  grouping: GroupConfig[];
+  filters?: FilterNode[];
+  filterLogic?: FilterLogic;
+  globalSearch?: string;
+  searchColumns?: string[];
+}
+
+/** Descriptor for detail rows within an expanded group. */
+export interface GroupDetailDescriptor {
+  groupValues: { column: string; value: unknown }[];
+  filters?: FilterNode[];
+  filterLogic?: FilterLogic;
+  sorting?: SortConfig[];
+  globalSearch?: string;
+  searchColumns?: string[];
 }
 
 // ─── Query Adapter Interface ────────────────────────────────────────────────
@@ -68,18 +126,26 @@ export interface QueryAdapter {
   /** Returns the list of safe column names (for SQL injection prevention). */
   getAllowedColumns(): string[];
 
-  // ── Live Query (flat mode) ──────────────────────────────────────────────
+  // ── Query Execution ─────────────────────────────────────────────────────
 
-  /** Create a live (reactive) query subscription. */
-  createLiveQuery(sql: string, params?: unknown[]): LiveQueryHandle;
+  /** Create a live (reactive) query for flat row data. */
+  createLiveQuery(query: QueryDescriptor): LiveQueryHandle;
 
-  // ── One-shot Queries ────────────────────────────────────────────────────
+  /** Execute a count query. Returns the total number of matching rows. */
+  executeCount(query: CountDescriptor): Promise<number>;
 
-  /** Execute a one-shot query and return rows. */
-  execute<T = Record<string, unknown>>(
-    sql: string,
-    params?: unknown[],
-  ): Promise<{ rows: T[] }>;
+  /** Execute a group summary query. Returns group header rows with aggregations. */
+  executeGroupSummary(
+    query: GroupSummaryDescriptor,
+  ): Promise<{ rows: Record<string, unknown>[] }>;
+
+  /** Execute a group count query. Returns how many distinct groups exist. */
+  executeGroupCount(query: GroupCountDescriptor): Promise<number>;
+
+  /** Execute a group detail query. Returns detail rows for an expanded group. */
+  executeGroupDetail(
+    query: GroupDetailDescriptor,
+  ): Promise<{ rows: Record<string, unknown>[] }>;
 
   // ── State Persistence ───────────────────────────────────────────────────
 
@@ -116,34 +182,8 @@ export interface QueryAdapter {
   // ── Filter Suggestions ──────────────────────────────────────────────────
 
   /** Fetch distinct values for a column (for autocomplete suggestions). */
-  getDistinctValues(
-    column: string,
-    options?: {
-      table?: string;
-      source?: string;
-      filters?: FilterNode[];
-      filterLogic?: FilterLogic;
-      allowedColumns?: string[];
-    },
-  ): Promise<string[]>;
+  getDistinctValues(column: string): Promise<string[]>;
 
   /** Fetch min/max range for a numeric column. */
-  getNumericRange(
-    column: string,
-    options?: {
-      table?: string;
-      source?: string;
-      filters?: FilterNode[];
-      filterLogic?: FilterLogic;
-      allowedColumns?: string[];
-    },
-  ): Promise<{ min: number; max: number } | null>;
-
-  // ── Query Source ────────────────────────────────────────────────────────
-
-  /** Returns the table name if in table mode, or undefined. */
-  getTable(): string | undefined;
-
-  /** Returns the raw SQL source if in query mode, or undefined. */
-  getSource(): string | undefined;
+  getNumericRange(column: string): Promise<{ min: number; max: number } | null>;
 }

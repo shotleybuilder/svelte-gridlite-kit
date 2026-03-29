@@ -28,9 +28,6 @@
 	/** Column config overrides (labels, dataType, selectOptions) */
 	export let columnConfigs: ColumnConfig[] = [];
 
-	/** Allowed column names for query safety */
-	export let allowedColumns: string[] = [];
-
 	/** Current filter nodes (conditions and/or groups) */
 	export let conditions: FilterNode[] = [];
 	export let onConditionsChange: (conditions: FilterNode[]) => void;
@@ -293,7 +290,6 @@
 										{adapter}
 										{columns}
 										{columnConfigs}
-										{allowedColumns}
 										onUpdate={(updated) => updateNode(index, updated)}
 										onRemove={() => removeNode(index)}
 									/>

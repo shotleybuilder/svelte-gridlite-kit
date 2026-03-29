@@ -36,9 +36,6 @@
 	/** Column config overrides */
 	export let columnConfigs: ColumnConfig[] = [];
 
-	/** Allowed column names */
-	export let allowedColumns: string[] = [];
-
 	/** Called when this group is updated */
 	export let onUpdate: (updated: FilterGroup) => void;
 
@@ -199,7 +196,6 @@
 					{adapter}
 					{columns}
 					{columnConfigs}
-					{allowedColumns}
 					onUpdate={makeGroupUpdateHandler(index)}
 					onRemove={() => removeChild(index)}
 				/>

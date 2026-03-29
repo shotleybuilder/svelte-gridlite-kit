@@ -26,13 +26,6 @@
 	} from './types.js';
 	import type { QueryAdapter, LiveQueryHandle, LiveQueryState } from './adapter.js';
 	import { mapOidToDataType } from './query/schema.js';
-	import {
-		buildQuery,
-		buildCountQuery,
-		buildGroupSummaryQuery,
-		buildGroupCountQuery,
-		buildGroupDetailQuery
-	} from './query/builder.js';
 	import FilterBar from './components/FilterBar.svelte';
 	import SortBar from './components/SortBar.svelte';
 	import GroupBar from './components/GroupBar.svelte';
@@ -261,10 +254,8 @@
 			columns = await adapter.introspect();
 			allowedColumns = adapter.getAllowedColumns();
 
-			if (adapter.getTable() && columns.length === 0) {
-				error = `Table "${adapter.getTable()}" not found or has no columns`;
-				return;
-			}
+			// Table mode returns columns from introspect(); query mode returns empty
+			// (columns will be derived from live query result fields later)
 
 			// Load persisted custom labels
 			if (config?.id) {
@@ -292,19 +283,6 @@
 			store = null;
 		}
 
-		let sql: string;
-		let params: unknown[] = [];
-
-		// Determine query source from adapter
-		const adapterTable = adapter.getTable();
-		const adapterSource = adapter.getSource();
-		const querySource = adapterSource ? { source: adapterSource } : adapterTable ? { table: adapterTable } : null;
-
-		if (!querySource) {
-			error = 'Adapter must be configured with either table or query';
-			return;
-		}
-
 		const currentlyGrouped = grouping.filter((g) => g.column !== '').length > 0;
 		if (currentlyGrouped) {
 			// Grouped mode — use two-query strategy
@@ -312,20 +290,8 @@
 			return;
 		}
 
-		// Build query from state (works for both table and raw query mode)
+		// Build descriptor from current UI state
 		const usePagination = features.pagination !== false;
-		const built = buildQuery({
-			...querySource,
-			filters,
-			filterLogic,
-			sorting,
-			page: usePagination ? page : undefined,
-			pageSize: usePagination ? pageSize : undefined,
-			allowedColumns,
-			globalSearch: globalFilter || undefined
-		});
-		sql = built.sql;
-		params = built.params;
 
 		// Get total count for pagination
 		if (usePagination) {
@@ -338,12 +304,19 @@
 		totalGroups = 0;
 
 		// Create live query via adapter
-		store = adapter.createLiveQuery(sql, params);
+		store = adapter.createLiveQuery({
+			filters,
+			filterLogic,
+			sorting,
+			page: usePagination ? page : undefined,
+			pageSize: usePagination ? pageSize : undefined,
+			globalSearch: globalFilter || undefined
+		});
 		store.subscribe((state) => {
 			storeState = state;
 
 			// In raw query mode, derive columns from result fields on first result
-			if (adapterSource && columns.length === 0 && state.fields.length > 0) {
+			if (columns.length === 0 && state.fields.length > 0) {
 				columns = state.fields.map((f) => ({
 					name: f.name,
 					dataType: mapOidToDataType(f.dataTypeID),
@@ -368,10 +341,6 @@
 		// Snapshot reactive state — validGrouping may change after awaits
 		const groupingSnapshot = [...validGrouping];
 		if (groupingSnapshot.length === 0) return;
-		const adapterTable = adapter.getTable();
-		const adapterSource = adapter.getSource();
-		const querySource = adapterSource ? { source: adapterSource } : adapterTable ? { table: adapterTable } : null;
-		if (!querySource) return;
 
 		try {
 			const usePagination = features.pagination !== false;
@@ -384,41 +353,27 @@
 			const groupSorting = sorting.filter((s) => topColumnNames.includes(s.column));
 
 			// 1. Fetch top-level group summaries
-			const summaryQuery = buildGroupSummaryQuery({
-				...querySource,
+			const summaryResult = await adapter.executeGroupSummary({
 				grouping: [topGroupConfig],
 				filters,
 				filterLogic,
-				allowedColumns,
 				globalSearch: globalFilter || undefined,
 				sorting: groupSorting,
 				page: usePagination ? page : undefined,
 				pageSize: usePagination ? pageSize : undefined
 			});
 
-			const summaryResult = await adapter.execute<Record<string, unknown>>(
-				summaryQuery.sql,
-				summaryQuery.params
-			);
-
 			// Re-check after await — grouping may have been cleared
 			if (validGrouping.length === 0) return;
 
 			// 2. Get total group count for pagination
 			if (usePagination) {
-				const countQuery = buildGroupCountQuery({
-					...querySource,
+				totalGroups = await adapter.executeGroupCount({
 					grouping: [topGroupConfig],
 					filters,
 					filterLogic,
-					allowedColumns,
 					globalSearch: globalFilter || undefined
 				});
-				const countResult = await adapter.execute<{ total: string }>(
-					countQuery.sql,
-					countQuery.params
-				);
-				totalGroups = parseInt(countResult.rows[0]?.total ?? '0', 10);
 				totalRows = totalGroups;
 			}
 
@@ -469,10 +424,6 @@
 	async function fetchGroupChildren(group: GroupRow) {
 		// Snapshot reactive state — validGrouping may change after awaits
 		const groupingSnapshot = [...validGrouping];
-		const adapterTable = adapter.getTable();
-		const adapterSource = adapter.getSource();
-		const querySource = adapterSource ? { source: adapterSource } : adapterTable ? { table: adapterTable } : null;
-		if (!querySource) return;
 
 		const key = groupKey(group);
 		groupLoading = new Set([...groupLoading, key]);
@@ -492,8 +443,7 @@
 				const subColumnNames = groupingSnapshot.slice(0, nextDepth + 1).map((g) => g.column);
 				const groupSorting = sorting.filter((s) => subColumnNames.includes(s.column));
 
-				const summaryQuery = buildGroupSummaryQuery({
-					...querySource,
+				const result = await adapter.executeGroupSummary({
 					grouping: [subGroupConfig],
 					filters: [
 						...filters,
@@ -506,15 +456,9 @@
 						}))
 					],
 					filterLogic,
-					allowedColumns,
 					globalSearch: globalFilter || undefined,
 					sorting: groupSorting
 				});
-
-				const result = await adapter.execute<Record<string, unknown>>(
-					summaryQuery.sql,
-					summaryQuery.params
-				);
 
 				const subCol = groupingSnapshot[nextDepth].column;
 				const subGroups: GroupRow[] = result.rows.map((row) => {
@@ -535,20 +479,13 @@
 				updateGroupInTree(key, { subGroups });
 			} else {
 				// Deepest level — fetch detail rows
-				const detailQuery = buildGroupDetailQuery({
-					...querySource,
+				const result = await adapter.executeGroupDetail({
 					groupValues: parentValues,
 					filters,
 					filterLogic,
 					sorting,
-					allowedColumns,
 					globalSearch: globalFilter || undefined
 				});
-
-				const result = await adapter.execute<Record<string, unknown>>(
-					detailQuery.sql,
-					detailQuery.params
-				);
 
 				updateGroupInTree(key, { children: result.rows });
 			}
@@ -580,20 +517,12 @@
 	}
 
 	async function updateTotalCount() {
-		const adapterTable = adapter.getTable();
-		const adapterSource = adapter.getSource();
-		const querySource = adapterSource ? { source: adapterSource } : adapterTable ? { table: adapterTable } : null;
-		if (!querySource) return;
 		try {
-			const countQuery = buildCountQuery({
-				...querySource,
+			totalRows = await adapter.executeCount({
 				filters,
 				filterLogic,
-				allowedColumns,
 				globalSearch: globalFilter || undefined
 			});
-			const result = await adapter.execute<{ total: string }>(countQuery.sql, countQuery.params);
-			totalRows = parseInt(result.rows[0]?.total ?? '0', 10);
 		} catch {
 			totalRows = 0;
 		}
@@ -1220,7 +1149,6 @@
 							{adapter}
 							{columns}
 							columnConfigs={mergedColumnConfigs}
-							{allowedColumns}
 							conditions={filters}
 							onConditionsChange={handleFiltersChange}
 							logic={filterLogic}
@@ -1772,7 +1700,6 @@
 							{adapter}
 							{columns}
 							columnConfigs={mergedColumnConfigs}
-							{allowedColumns}
 							conditions={filters}
 							onConditionsChange={handleFiltersChange}
 							logic={filterLogic}

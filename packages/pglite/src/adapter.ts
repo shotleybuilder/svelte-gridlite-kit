@@ -12,17 +12,24 @@ import type {
   QueryAdapter,
   LiveQueryHandle,
   ColumnStateEntry,
+  QueryDescriptor,
+  CountDescriptor,
+  GroupSummaryDescriptor,
+  GroupCountDescriptor,
+  GroupDetailDescriptor,
 } from "@shotleybuilder/svelte-gridlite-kit/adapter";
 import type {
   ColumnMetadata,
-  FilterNode,
-  FilterLogic,
   ViewPreset,
 } from "@shotleybuilder/svelte-gridlite-kit/types";
 import {
   quoteIdentifier,
   resolveFrom,
-  buildWhereClauseFromNodes,
+  buildQuery,
+  buildCountQuery,
+  buildGroupSummaryQuery,
+  buildGroupCountQuery,
+  buildGroupDetailQuery,
 } from "@shotleybuilder/svelte-gridlite-kit/builder";
 
 import { createLiveQueryStore, type PGliteWithLive } from "./live.js";
@@ -109,20 +116,86 @@ export class PGLiteAdapter implements QueryAdapter {
     this.allowedColumns = columns.map((c) => c.name);
   }
 
-  // ── Live Query ────────────────────────────────────────────────────────────
+  // ── Private Helpers ───────────────────────────────────────────────────────
 
-  createLiveQuery(sql: string, params?: unknown[]): LiveQueryHandle {
-    return createLiveQueryStore(this.db, sql, params ?? []);
+  private resolveSource(): { table?: string; source?: string } {
+    return this.table ? { table: this.table } : { source: this.source };
   }
 
-  // ── One-shot Queries ──────────────────────────────────────────────────────
+  // ── Query Execution ───────────────────────────────────────────────────────
 
-  async execute<T = Record<string, unknown>>(
-    sql: string,
-    params?: unknown[],
-  ): Promise<{ rows: T[] }> {
-    const result = await this.db.query<T>(sql, (params ?? []) as any[]);
-    return { rows: result.rows };
+  createLiveQuery(query: QueryDescriptor): LiveQueryHandle {
+    const built = buildQuery({
+      ...this.resolveSource(),
+      ...query,
+      allowedColumns: this.allowedColumns,
+    });
+    const store = createLiveQueryStore(this.db, built.sql, built.params);
+
+    // Wrap the SQL-native store to satisfy the descriptor-based LiveQueryHandle interface
+    return {
+      subscribe: store.subscribe,
+      refresh: store.refresh,
+      update: async (newQuery: QueryDescriptor) => {
+        const newBuilt = buildQuery({
+          ...this.resolveSource(),
+          ...newQuery,
+          allowedColumns: this.allowedColumns,
+        });
+        await store.update(newBuilt.sql, newBuilt.params);
+      },
+      destroy: store.destroy,
+    };
+  }
+
+  async executeCount(query: CountDescriptor): Promise<number> {
+    const built = buildCountQuery({
+      ...this.resolveSource(),
+      ...query,
+      allowedColumns: this.allowedColumns,
+    });
+    const result = await this.db.query<{ total: string }>(
+      built.sql,
+      built.params as any[],
+    );
+    return parseInt(result.rows[0]?.total ?? "0", 10);
+  }
+
+  async executeGroupSummary(
+    query: GroupSummaryDescriptor,
+  ): Promise<{ rows: Record<string, unknown>[] }> {
+    const built = buildGroupSummaryQuery({
+      ...this.resolveSource(),
+      ...query,
+      allowedColumns: this.allowedColumns,
+    });
+    const result = await this.db.query(built.sql, built.params as any[]);
+    return { rows: result.rows as Record<string, unknown>[] };
+  }
+
+  async executeGroupCount(query: GroupCountDescriptor): Promise<number> {
+    const built = buildGroupCountQuery({
+      ...this.resolveSource(),
+      ...query,
+      allowedColumns: this.allowedColumns,
+    });
+    const result = await this.db.query<{ total: string }>(
+      built.sql,
+      built.params as any[],
+    );
+    return parseInt(result.rows[0]?.total ?? "0", 10);
+  }
+
+  async executeGroupDetail(
+    query: GroupDetailDescriptor,
+  ): Promise<{ rows: Record<string, unknown>[] }> {
+    const built = buildGroupDetailQuery({
+      ...this.resolveSource(),
+      ...query,
+      allowedColumns: this.allowedColumns,
+    });
+    const result = await this.db.query(built.sql, built.params as any[]);
+    return { rows: result.rows as Record<string, unknown>[] };
   }
 
   // ── State Persistence ─────────────────────────────────────────────────────
@@ -188,56 +261,23 @@ export class PGLiteAdapter implements QueryAdapter {
 
   // ── Filter Suggestions ────────────────────────────────────────────────────
 
-  async getDistinctValues(
-    column: string,
-    options?: {
-      table?: string;
-      source?: string;
-      filters?: FilterNode[];
-      filterLogic?: FilterLogic;
-      allowedColumns?: string[];
-    },
-  ): Promise<string[]> {
-    const tbl = options?.table ?? this.table;
-    const src = options?.source ?? this.source;
-    const cols = options?.allowedColumns ?? this.allowedColumns;
-
-    const fromClause = resolveFrom(tbl, src);
-    const quotedCol = quoteIdentifier(column, cols);
+  async getDistinctValues(column: string): Promise<string[]> {
+    const fromClause = resolveFrom(this.table, this.source);
+    const quotedCol = quoteIdentifier(column, this.allowedColumns);
 
     // Determine data type for JSONB detection
     const colMeta = this.columns.find((c) => c.name === column);
     const dataType = colMeta?.dataType;
 
-    let extraWhere = "";
-    let whereParams: unknown[] = [];
-    if (options?.filters && options.filters.length > 0) {
-      const built = buildWhereClauseFromNodes(
-        options.filters,
-        options.filterLogic ?? "and",
-        0,
-        cols,
-      );
-      if (built.sql) {
-        // built.sql is "WHERE ..." — strip the WHERE prefix and add as AND
-        const clause = built.sql.replace(/^WHERE\s+/i, "");
-        extraWhere = ` AND ${clause}`;
-        whereParams = built.params;
-      }
-    }
-
     let sql: string;
     if (dataType === "json") {
-      sql = `SELECT DISTINCT jsonb_object_keys(${quotedCol}) AS val FROM ${fromClause} WHERE ${quotedCol} IS NOT NULL${extraWhere} ORDER BY val LIMIT 200`;
+      sql = `SELECT DISTINCT jsonb_object_keys(${quotedCol}) AS val FROM ${fromClause} WHERE ${quotedCol} IS NOT NULL ORDER BY val LIMIT 200`;
     } else {
-      sql = `SELECT DISTINCT ${quotedCol}::TEXT AS val FROM ${fromClause} WHERE ${quotedCol} IS NOT NULL${extraWhere} ORDER BY val LIMIT 200`;
+      sql = `SELECT DISTINCT ${quotedCol}::TEXT AS val FROM ${fromClause} WHERE ${quotedCol} IS NOT NULL ORDER BY val LIMIT 200`;
     }
 
     try {
-      const result = await this.db.query<{ val: string }>(
-        sql,
-        whereParams as any[],
-      );
+      const result = await this.db.query<{ val: string }>(sql);
       return result.rows.map((r) => r.val);
     } catch {
       return [];
@@ -246,45 +286,18 @@ export class PGLiteAdapter implements QueryAdapter {
 
   async getNumericRange(
     column: string,
-    options?: {
-      table?: string;
-      source?: string;
-      filters?: FilterNode[];
-      filterLogic?: FilterLogic;
-      allowedColumns?: string[];
-    },
   ): Promise<{ min: number; max: number } | null> {
-    const tbl = options?.table ?? this.table;
-    const src = options?.source ?? this.source;
-    const cols = options?.allowedColumns ?? this.allowedColumns;
-
     // Only query for numeric columns
     const colMeta = this.columns.find((c) => c.name === column);
     if (colMeta?.dataType !== "number") return null;
 
-    const fromClause = resolveFrom(tbl, src);
-    const quotedCol = quoteIdentifier(column, cols);
-
-    let whereClause = "";
-    let whereParams: unknown[] = [];
-    if (options?.filters && options.filters.length > 0) {
-      const built = buildWhereClauseFromNodes(
-        options.filters,
-        options.filterLogic ?? "and",
-        0,
-        cols,
-      );
-      if (built.sql) {
-        whereClause = ` ${built.sql}`;
-        whereParams = built.params;
-      }
-    }
+    const fromClause = resolveFrom(this.table, this.source);
+    const quotedCol = quoteIdentifier(column, this.allowedColumns);
 
     try {
-      const sql = `SELECT MIN(${quotedCol})::NUMERIC AS min_val, MAX(${quotedCol})::NUMERIC AS max_val FROM ${fromClause}${whereClause}`;
+      const sql = `SELECT MIN(${quotedCol})::NUMERIC AS min_val, MAX(${quotedCol})::NUMERIC AS max_val FROM ${fromClause}`;
       const result = await this.db.query<{ min_val: string; max_val: string }>(
         sql,
-        whereParams as any[],
       );
       const row = result.rows[0];
       if (row && row.min_val != null && row.max_val != null) {
@@ -294,16 +307,6 @@ export class PGLiteAdapter implements QueryAdapter {
     } catch {
       return null;
     }
-  }
-
-  // ── Query Source ──────────────────────────────────────────────────────────
-
-  getTable(): string | undefined {
-    return this.table;
-  }
-
-  getSource(): string | undefined {
-    return this.source;
   }
 }
 

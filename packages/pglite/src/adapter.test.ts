@@ -89,7 +89,7 @@ describe("createPGLiteAdapter", () => {
     const adapter = createPGLiteAdapter({ db, table: "employees" });
     expect(adapter).toBeDefined();
     expect(typeof adapter.init).toBe("function");
-    expect(typeof adapter.execute).toBe("function");
+    expect(typeof adapter.executeCount).toBe("function");
     expect(typeof adapter.createLiveQuery).toBe("function");
   });
 });
@@ -149,9 +149,9 @@ describe("init and introspect", () => {
   });
 });
 
-// ─── Execute ────────────────────────────────────────────────────────────────
+// ─── Query Execution ────────────────────────────────────────────────────────
 
-describe("execute", () => {
+describe("executeCount", () => {
   let db: PGliteWithLive;
 
   beforeEach(async () => {
@@ -159,27 +159,93 @@ describe("execute", () => {
     await seedEmployees(db);
   });
 
-  it("runs a simple query", async () => {
+  it("counts all rows", async () => {
     const adapter = new PGLiteAdapter({ db, table: "employees" });
-    const result = await adapter.execute("SELECT * FROM employees");
-    expect(result.rows.length).toBe(5);
+    await adapter.init();
+
+    const count = await adapter.executeCount({});
+    expect(count).toBe(5);
   });
 
-  it("runs a parameterized query", async () => {
+  it("counts with filter", async () => {
     const adapter = new PGLiteAdapter({ db, table: "employees" });
-    const result = await adapter.execute(
-      "SELECT * FROM employees WHERE department = $1",
-      ["Engineering"],
-    );
+    await adapter.init();
+
+    const count = await adapter.executeCount({
+      filters: [
+        {
+          id: "f1",
+          field: "department",
+          operator: "equals",
+          value: "Engineering",
+        },
+      ],
+      filterLogic: "and",
+    });
+    expect(count).toBe(2);
+  });
+});
+
+describe("executeGroupSummary", () => {
+  let db: PGliteWithLive;
+
+  beforeEach(async () => {
+    db = await createTestDb();
+    await seedEmployees(db);
+  });
+
+  it("returns group summaries with count", async () => {
+    const adapter = new PGLiteAdapter({ db, table: "employees" });
+    await adapter.init();
+
+    const result = await adapter.executeGroupSummary({
+      grouping: [{ column: "department" }],
+    });
+    expect(result.rows.length).toBe(3);
+    const eng = result.rows.find((r: any) => r.department === "Engineering");
+    expect(eng).toBeDefined();
+    expect(Number((eng as any)._count)).toBe(2);
+  });
+});
+
+describe("executeGroupCount", () => {
+  let db: PGliteWithLive;
+
+  beforeEach(async () => {
+    db = await createTestDb();
+    await seedEmployees(db);
+  });
+
+  it("returns number of distinct groups", async () => {
+    const adapter = new PGLiteAdapter({ db, table: "employees" });
+    await adapter.init();
+
+    const count = await adapter.executeGroupCount({
+      grouping: [{ column: "department" }],
+    });
+    expect(count).toBe(3);
+  });
+});
+
+describe("executeGroupDetail", () => {
+  let db: PGliteWithLive;
+
+  beforeEach(async () => {
+    db = await createTestDb();
+    await seedEmployees(db);
+  });
+
+  it("returns detail rows for a group", async () => {
+    const adapter = new PGLiteAdapter({ db, table: "employees" });
+    await adapter.init();
+
+    const result = await adapter.executeGroupDetail({
+      groupValues: [{ column: "department", value: "Engineering" }],
+    });
     expect(result.rows.length).toBe(2);
-  });
-
-  it("runs aggregation queries", async () => {
-    const adapter = new PGLiteAdapter({ db, table: "employees" });
-    const result = await adapter.execute<{ count: string }>(
-      "SELECT COUNT(*) AS count FROM employees",
+    expect(result.rows.every((r: any) => r.department === "Engineering")).toBe(
+      true,
     );
-    expect(Number(result.rows[0].count)).toBe(5);
   });
 });
 
@@ -444,9 +510,9 @@ describe("createLiveQuery", () => {
     const adapter = new PGLiteAdapter({ db, table: "employees" });
     await adapter.init();
 
-    const handle = adapter.createLiveQuery(
-      "SELECT * FROM employees ORDER BY id",
-    );
+    const handle = adapter.createLiveQuery({
+      sorting: [{ column: "id", direction: "asc" }],
+    });
     expect(typeof handle.subscribe).toBe("function");
     expect(typeof handle.destroy).toBe("function");
     expect(typeof handle.refresh).toBe("function");
@@ -464,27 +530,6 @@ describe("createLiveQuery", () => {
 
     unsub();
     await handle.destroy();
-  });
-});
-
-// ─── Query Source ───────────────────────────────────────────────────────────
-
-describe("getTable / getSource", () => {
-  it("returns table when constructed with table", async () => {
-    const db = await createTestDb();
-    const adapter = new PGLiteAdapter({ db, table: "employees" });
-    expect(adapter.getTable()).toBe("employees");
-    expect(adapter.getSource()).toBeUndefined();
-  });
-
-  it("returns source when constructed with query", async () => {
-    const db = await createTestDb();
-    const adapter = new PGLiteAdapter({
-      db,
-      query: "SELECT * FROM employees",
-    });
-    expect(adapter.getTable()).toBeUndefined();
-    expect(adapter.getSource()).toBe("SELECT * FROM employees");
   });
 });
 

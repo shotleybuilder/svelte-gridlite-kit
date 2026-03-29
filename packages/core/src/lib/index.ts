@@ -6,6 +6,11 @@ export type {
   LiveQueryHandle,
   LiveQueryState,
   ColumnStateEntry,
+  QueryDescriptor,
+  CountDescriptor,
+  GroupSummaryDescriptor,
+  GroupCountDescriptor,
+  GroupDetailDescriptor,
 } from "./adapter.js";
 
 // Main component
