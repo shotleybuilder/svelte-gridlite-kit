@@ -14,6 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 |---|---|---|
 | `packages/core` | `@shotleybuilder/svelte-gridlite-kit` | Core grid component + query builder (no db dependency at runtime) |
 | `packages/pglite` | `@shotleybuilder/gridlite-adapter-pglite` | PGLite adapter implementing `QueryAdapter` |
+| `packages/tanstack-db` | `@shotleybuilder/gridlite-adapter-tanstack-db` | TanStack DB adapter implementing `QueryAdapter` |
 | `packages/demo` | (private) | Demo app with example pages |
 
 ## Development Commands
@@ -37,13 +38,15 @@ pnpm package                   # Package core (svelte-package + publint)
 pnpm check                     # Run svelte-check (core) + tsc (pglite)
 pnpm --filter @shotleybuilder/svelte-gridlite-kit check    # Core only
 pnpm --filter @shotleybuilder/gridlite-adapter-pglite check # PGLite only
+pnpm --filter @shotleybuilder/gridlite-adapter-tanstack-db check # TanStack DB only
 ```
 
 ### Testing
 ```bash
 pnpm test:run                  # Run all tests across all packages
 pnpm --filter @shotleybuilder/svelte-gridlite-kit test:run  # Core only (180 tests)
-pnpm --filter @shotleybuilder/gridlite-adapter-pglite test:run # PGLite only (64 tests)
+pnpm --filter @shotleybuilder/gridlite-adapter-pglite test:run # PGLite only (68 tests)
+pnpm --filter @shotleybuilder/gridlite-adapter-tanstack-db test:run # TanStack DB only (78 tests)
 ```
 
 ### Linting & Formatting
@@ -62,7 +65,7 @@ The component accepts a **QueryAdapter** (e.g. `createPGLiteAdapter({ db, table 
 
 Core defines a `QueryAdapter` interface (`packages/core/src/lib/adapter.ts`). Adapters implement it:
 - **PGLiteAdapter** (`packages/pglite/src/adapter.ts`) — PGLite (Postgres in WASM)
-- Future: TanStack DB adapter (Phase 4)
+- **TanStackDBAdapter** (`packages/tanstack-db/src/adapter.ts`) — TanStack DB collections (in-memory, reactive)
 
 GridLite receives `adapter` prop, builds SQL via the query builder (pure functions in core), then calls `adapter.execute(sql)` or `adapter.createLiveQuery(sql)`.
 
@@ -73,6 +76,7 @@ GridLite receives `adapter` prop, builds SQL via the query builder (pure functio
 | `svelte` | Reactive UI framework |
 | `@sveltejs/kit` | Dev server and packaging (dev only) |
 | `@electric-sql/pglite` | Postgres WASM engine (pglite adapter only) |
+| `@tanstack/db` | Reactive client-side database (tanstack-db adapter only) |
 
 **No TanStack Table dependency.** The SQL engine IS the table engine.
 
@@ -113,6 +117,14 @@ packages/
 │   ├── schema.ts                    # introspectTable, getColumnNames
 │   ├── migrations.ts                # Config table schema creation
 │   └── views.ts                     # View/column state CRUD
+├── tanstack-db/src/                 # @shotleybuilder/gridlite-adapter-tanstack-db
+│   ├── adapter.ts                   # TanStackDBAdapter class
+│   ├── index.ts                     # Public exports
+│   ├── live.ts                      # LiveQueryHandle wrapper around createLiveQueryCollection
+│   ├── schema.ts                    # Derive ColumnMetadata from Zod schema
+│   ├── storage.ts                   # StorageProvider + InMemoryStorage + LocalStorageProvider
+│   ├── query-translator.ts          # Descriptor → TanStack DB query builder chain
+│   └── operator-map.ts              # FilterOperator → TanStack DB operator functions
 └── demo/src/routes/                 # Demo app (private)
 ```
 
@@ -138,6 +150,12 @@ packages/
 **PGLiteAdapter** (pglite) — PGLite implementation of QueryAdapter
 - Wraps PGLite live queries, schema introspection, state persistence
 - Created via `createPGLiteAdapter({ db, table })` or `createPGLiteAdapter({ db, query })`
+
+**TanStackDBAdapter** (tanstack-db) — TanStack DB implementation of QueryAdapter
+- Translates structured descriptors into TanStack DB query builder chains
+- Uses `createLiveQueryCollection` (framework-agnostic) for reactive queries
+- Pluggable `StorageProvider` for state persistence (InMemoryStorage or LocalStorageProvider)
+- Created via `createTanStackDBAdapter({ collection, columns })` or with `schema` (Zod) for auto column derivation
 
 ### UI Components (carried from svelte-table-kit)
 
@@ -201,8 +219,10 @@ features={{
 
 - Test framework: Vitest
 - **Core tests** (`packages/core/`): Query builder, pure functions — ~180 tests
-- **PGLite tests** (`packages/pglite/`): Adapter, live queries, schema, migrations, views — ~64 tests
+- **PGLite tests** (`packages/pglite/`): Adapter, live queries, schema, migrations, views — ~68 tests
+- **TanStack DB tests** (`packages/tanstack-db/`): Adapter, operators, query translation, storage — ~78 tests
 - PGLite can be instantiated in-memory for tests (no IndexedDB needed)
+- TanStack DB uses `localOnlyCollectionOptions` with `initialData` for pure in-memory tests
 - Query builder tests should verify parameterized output, not just results
 - Run all: `pnpm -r test:run`
 
@@ -211,6 +231,7 @@ features={{
 - **Monorepo:** pnpm workspaces
 - **Core package:** `@sveltejs/package` (svelte-package) → `dist/`
 - **PGLite adapter:** `tsc` → `dist/`
+- **TanStack DB adapter:** `tsc` → `dist/`
 - **Demo:** Vite dev server (not published)
 - **Validation:** publint checks core package exports
 

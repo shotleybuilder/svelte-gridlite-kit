@@ -1,0 +1,42 @@
+{
+  "name": "@shotleybuilder/gridlite-adapter-tanstack-db",
+  "version": "0.5.0",
+  "description": "TanStack DB adapter for svelte-gridlite-kit",
+  "author": "Sertantai",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shotleybuilder/svelte-gridlite-kit.git",
+    "directory": "packages/tanstack-db"
+  },
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "!dist/**/*.spec.*"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "check": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@tanstack/db": ">=0.5.0",
+    "@shotleybuilder/svelte-gridlite-kit": "workspace:*"
+  },
+  "devDependencies": {
+    "@tanstack/db": "^0.6.0",
+    "@shotleybuilder/svelte-gridlite-kit": "workspace:*",
+    "typescript": "^5.0.0",
+    "vitest": "^2.0.0",
+    "zod": "^3.23.0"
+  }
+}
