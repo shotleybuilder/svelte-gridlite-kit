@@ -8,13 +8,21 @@
 - **`adapter` prop replaces `db`/`table`/`query`** — `GridLite` now accepts a single `adapter: QueryAdapter` prop instead of `db: PGliteWithLive`, `table: string`, and `query: string`
 - **PGLite-specific code moved to separate package** — `createLiveQueryStore`, `introspectTable`, `getColumnNames`, `runMigrations`, `saveView`, `loadView`, `saveColumnState`, `loadColumnState`, and all other PGLite-specific functions are now exported from `@shotleybuilder/gridlite-adapter-pglite` instead of the core package
 - **Core has no `@electric-sql/pglite` runtime dependency** — PGLite is now a peer dependency of the adapter package only
+- **Adapter interface uses structured descriptors instead of SQL strings** — `createLiveQuery()`, `executeCount()`, `executeGroupSummary()`, `executeGroupCount()`, and `executeGroupDetail()` now accept typed descriptor objects (`QueryDescriptor`, `CountDescriptor`, etc.) instead of raw SQL. Custom adapter implementations must be updated.
 
 ### Added
 
-- **`QueryAdapter` interface** (`packages/core/src/lib/adapter.ts`) — Database-agnostic contract for grid data operations: `init()`, `introspect()`, `createLiveQuery()`, `execute()`, `loadColumnState()`, `saveColumnState()`, `getDistinctValues()`, `getNumericRange()`
+- **`QueryAdapter` interface** (`packages/core/src/lib/adapter.ts`) — Database-agnostic contract for grid data operations using structured descriptors: `init()`, `introspect()`, `createLiveQuery(QueryDescriptor)`, `executeCount(CountDescriptor)`, `executeGroupSummary()`, `executeGroupCount()`, `executeGroupDetail()`, `loadColumnState()`, `saveColumnState()`, `getDistinctValues()`, `getNumericRange()`
+- **Structured query descriptors** — `QueryDescriptor`, `CountDescriptor`, `GroupSummaryDescriptor`, `GroupCountDescriptor`, `GroupDetailDescriptor` replace raw SQL strings in the adapter interface, enabling non-SQL backends
 - **`LiveQueryHandle` / `LiveQueryState` interfaces** — Svelte store-compatible reactive query subscription types
 - **`PGLiteAdapter` class** (`packages/pglite/src/adapter.ts`) — Full implementation of `QueryAdapter` for PGLite, created via `createPGLiteAdapter({ db, table })` or `createPGLiteAdapter({ db, query })`
-- **26 new adapter integration tests** in the pglite package
+- **`TanStackDBAdapter` class** (`packages/tanstack-db/src/adapter.ts`) — Full implementation of `QueryAdapter` for TanStack DB collections, created via `createTanStackDBAdapter({ collection, columns })` or `createTanStackDBAdapter({ collection, schema })` with Zod schema support
+- **`@shotleybuilder/gridlite-adapter-tanstack-db` package** — New adapter package with pluggable `StorageProvider` for state persistence (`InMemoryStorage`, `LocalStorageProvider`), operator mapping, query translation, and `createLiveQueryCollection`-based reactive queries
+- **68 adapter integration tests** in the pglite package, **74 tests** in the tanstack-db package
+
+### Changed
+
+- **Skills / documentation updated for adapter architecture** — All `.claude/skills/` files updated to use `adapter` prop instead of `db`/`table`. Quick-start skill now covers both PGLite and TanStack DB setup paths.
 
 ### Migration from 0.4.x
 
@@ -34,6 +42,16 @@ For raw query mode:
 - <GridLite {db} query="SELECT * FROM ..." ... />
 + const adapter = createPGLiteAdapter({ db, query: 'SELECT * FROM ...' });
 + <GridLite {adapter} ... />
+```
+
+For TanStack DB (new backend option):
+```typescript
+import { GridLite } from '@shotleybuilder/svelte-gridlite-kit';
+import { createTanStackDBAdapter } from '@shotleybuilder/gridlite-adapter-tanstack-db';
+
+const adapter = createTanStackDBAdapter({ collection: myCollection, columns: [...] });
+
+<GridLite {adapter} ... />
 ```
 
 ## 0.4.18 — 2026-03-29
