@@ -81,15 +81,13 @@ grid.setPageSize(50);
 grid.setGlobalFilter('alice');
 ```
 
-## View Persistence (PGLite Tables)
+## View Persistence
 
-GridLite creates internal tables for state persistence:
+GridLite creates internal tables for state persistence. Use adapter methods for backend-agnostic access:
 
 ```typescript
-import { saveView, loadView, loadViews, deleteView } from '@shotleybuilder/svelte-gridlite-kit';
-
 // Save current state as a named view
-await saveView(db, {
+await adapter.saveView('my-grid-id', {
   id: 'my-view',
   name: 'Engineering Team',
   filters: [...],
@@ -98,33 +96,41 @@ await saveView(db, {
 });
 
 // Load all saved views
-const views = await loadViews(db, 'my-grid-id');
+const views = await adapter.loadViews('my-grid-id');
 
 // Load a specific view
-const view = await loadView(db, 'my-view');
+const view = await adapter.loadView('my-view');
 
 // Delete a view
-await deleteView(db, 'my-view');
+await adapter.deleteView('my-view');
+
+// Default view
+await adapter.setDefaultView('my-grid-id', 'my-view');
+const def = await adapter.loadDefaultView('my-grid-id');
 ```
+
+> **Advanced:** The PGLite adapter also exports standalone functions (`saveView(db, gridId, view)`, etc.) from `@shotleybuilder/gridlite-adapter-pglite` for direct PGLite access.
 
 ## Column State Persistence
 
 ```typescript
-import { saveColumnState, loadColumnState } from '@shotleybuilder/svelte-gridlite-kit';
-
-// Save column widths, order, visibility
-await saveColumnState(db, 'my-grid-id', {
-  columnOrder: ['name', 'email', 'department'],
-  columnSizing: { name: 250, email: 300 },
-  columnVisibility: { id: false }
-});
+// Save column widths, order, visibility, labels
+await adapter.saveColumnState('my-grid-id', [
+  { name: 'name', visible: true, width: 250, position: 0, label: 'Full Name' },
+  { name: 'email', visible: true, width: 300, position: 1, label: null },
+  { name: 'id', visible: false, width: null, position: 2, label: null },
+]);
 
 // Load on init
-const colState = await loadColumnState(db, 'my-grid-id');
+const colState = await adapter.loadColumnState('my-grid-id');
+
+// View-scoped column state
+await adapter.saveColumnState('my-grid-id', columns, 'my-view');
+const scoped = await adapter.loadColumnState('my-grid-id', 'my-view');
 ```
 
 ## Migration System
 
-GridLite auto-runs migrations on init (`runMigrations(db)`). Config tables:
+GridLite auto-runs migrations on `adapter.init()`. Config tables:
 - `_gridlite_views` — saved view presets
 - `_gridlite_column_state` — column display state

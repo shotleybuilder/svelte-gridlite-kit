@@ -4,7 +4,12 @@
 // Adapters are constructed with their data source configuration and passed
 // to GridLite via the `adapter` prop.
 
-import type { ColumnMetadata, FilterNode, FilterLogic } from "./types.js";
+import type {
+  ColumnMetadata,
+  FilterNode,
+  FilterLogic,
+  ViewPreset,
+} from "./types.js";
 
 // ─── Live Query Handle ──────────────────────────────────────────────────────
 
@@ -87,6 +92,26 @@ export interface QueryAdapter {
     columns: ColumnStateEntry[],
     viewId?: string,
   ): Promise<void>;
+
+  // ── View Persistence ─────────────────────────────────────────────────────
+
+  /** Save (upsert) a view configuration for a grid instance. */
+  saveView(gridId: string, view: ViewPreset): Promise<void>;
+
+  /** Load a single view by ID. Returns null if not found. */
+  loadView(viewId: string): Promise<ViewPreset | null>;
+
+  /** Load all views for a grid instance, sorted by name. */
+  loadViews(gridId: string): Promise<ViewPreset[]>;
+
+  /** Delete a view by ID (cascades to associated column state). */
+  deleteView(viewId: string): Promise<void>;
+
+  /** Load the default view for a grid instance (if one is set). */
+  loadDefaultView(gridId: string): Promise<ViewPreset | null>;
+
+  /** Set a view as the default for its grid. Clears any previous default. */
+  setDefaultView(gridId: string, viewId: string): Promise<void>;
 
   // ── Filter Suggestions ──────────────────────────────────────────────────
 

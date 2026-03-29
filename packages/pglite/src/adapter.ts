@@ -17,6 +17,7 @@ import type {
   ColumnMetadata,
   FilterNode,
   FilterLogic,
+  ViewPreset,
 } from "@shotleybuilder/svelte-gridlite-kit/types";
 import {
   quoteIdentifier,
@@ -30,6 +31,12 @@ import { runMigrations } from "./migrations.js";
 import {
   loadColumnState as loadColumnStateFromDb,
   saveColumnState as saveColumnStateFromDb,
+  saveView as saveViewToDb,
+  loadView as loadViewFromDb,
+  loadViews as loadViewsFromDb,
+  deleteView as deleteViewFromDb,
+  loadDefaultView as loadDefaultViewFromDb,
+  setDefaultView as setDefaultViewFromDb,
 } from "./views.js";
 
 // ─── Options ────────────────────────────────────────────────────────────────
@@ -151,6 +158,32 @@ export class PGLiteAdapter implements QueryAdapter {
       })),
       viewId,
     );
+  }
+
+  // ── View Persistence ───────────────────────────────────────────────────────
+
+  async saveView(gridId: string, view: ViewPreset): Promise<void> {
+    await saveViewToDb(this.db, gridId, view);
+  }
+
+  async loadView(viewId: string): Promise<ViewPreset | null> {
+    return loadViewFromDb(this.db, viewId);
+  }
+
+  async loadViews(gridId: string): Promise<ViewPreset[]> {
+    return loadViewsFromDb(this.db, gridId);
+  }
+
+  async deleteView(viewId: string): Promise<void> {
+    await deleteViewFromDb(this.db, viewId);
+  }
+
+  async loadDefaultView(gridId: string): Promise<ViewPreset | null> {
+    return loadDefaultViewFromDb(this.db, gridId);
+  }
+
+  async setDefaultView(gridId: string, viewId: string): Promise<void> {
+    await setDefaultViewFromDb(this.db, gridId, viewId);
   }
 
   // ── Filter Suggestions ────────────────────────────────────────────────────

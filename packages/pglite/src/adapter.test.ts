@@ -277,6 +277,93 @@ describe("column state persistence", () => {
   });
 });
 
+// ─── View Persistence ───────────────────────────────────────────────────────
+
+describe("view persistence", () => {
+  let db: PGliteWithLive;
+
+  beforeEach(async () => {
+    db = await createTestDb();
+    await seedEmployees(db);
+  });
+
+  it("saves and loads a view", async () => {
+    const adapter = new PGLiteAdapter({ db, table: "employees" });
+    await adapter.init();
+
+    await adapter.saveView("test-grid", {
+      id: "view-1",
+      name: "Active Engineers",
+      filters: [
+        {
+          id: "f1",
+          field: "department",
+          operator: "equals",
+          value: "Engineering",
+        },
+      ],
+      filterLogic: "and",
+      sorting: [{ column: "name", direction: "asc" }],
+      grouping: [],
+      columnVisibility: { name: true, salary: true },
+      columnOrder: ["name", "salary"],
+    });
+
+    const loaded = await adapter.loadView("view-1");
+    expect(loaded).not.toBeNull();
+    expect(loaded!.name).toBe("Active Engineers");
+    expect(loaded!.filters).toHaveLength(1);
+    expect(loaded!.sorting).toHaveLength(1);
+    expect(loaded!.columnOrder).toEqual(["name", "salary"]);
+  });
+
+  it("loads all views for a grid sorted by name", async () => {
+    const adapter = new PGLiteAdapter({ db, table: "employees" });
+    await adapter.init();
+
+    await adapter.saveView("test-grid", { id: "v-b", name: "Beta" });
+    await adapter.saveView("test-grid", { id: "v-a", name: "Alpha" });
+
+    const views = await adapter.loadViews("test-grid");
+    expect(views).toHaveLength(2);
+    expect(views[0].name).toBe("Alpha");
+    expect(views[1].name).toBe("Beta");
+  });
+
+  it("deletes a view", async () => {
+    const adapter = new PGLiteAdapter({ db, table: "employees" });
+    await adapter.init();
+
+    await adapter.saveView("test-grid", { id: "v1", name: "Delete Me" });
+    await adapter.deleteView("v1");
+
+    const loaded = await adapter.loadView("v1");
+    expect(loaded).toBeNull();
+  });
+
+  it("sets and loads default view", async () => {
+    const adapter = new PGLiteAdapter({ db, table: "employees" });
+    await adapter.init();
+
+    await adapter.saveView("test-grid", { id: "v1", name: "View 1" });
+    await adapter.saveView("test-grid", { id: "v2", name: "View 2" });
+    await adapter.setDefaultView("test-grid", "v2");
+
+    const def = await adapter.loadDefaultView("test-grid");
+    expect(def).not.toBeNull();
+    expect(def!.id).toBe("v2");
+  });
+
+  it("returns null/empty for nonexistent data", async () => {
+    const adapter = new PGLiteAdapter({ db, table: "employees" });
+    await adapter.init();
+
+    expect(await adapter.loadView("nope")).toBeNull();
+    expect(await adapter.loadViews("nope")).toEqual([]);
+    expect(await adapter.loadDefaultView("nope")).toBeNull();
+  });
+});
+
 // ─── Filter Suggestions ─────────────────────────────────────────────────────
 
 describe("getDistinctValues", () => {
