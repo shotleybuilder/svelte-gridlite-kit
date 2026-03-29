@@ -272,12 +272,6 @@ export class PGLiteAdapter implements QueryAdapter {
   getSource(): string | undefined {
     return this.source;
   }
-
-  // ── Phase 1 Bridge ────────────────────────────────────────────────────────
-
-  _getDb(): unknown {
-    return this.db;
-  }
 }
 
 // ─── Factory Function ───────────────────────────────────────────────────────

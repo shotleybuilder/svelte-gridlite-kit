@@ -401,16 +401,6 @@ describe("getTable / getSource", () => {
   });
 });
 
-// ─── Phase 1 Bridge ─────────────────────────────────────────────────────────
-
-describe("_getDb bridge", () => {
-  it("returns the raw PGLite instance", async () => {
-    const db = await createTestDb();
-    const adapter = new PGLiteAdapter({ db, table: "employees" });
-    expect(adapter._getDb()).toBe(db);
-  });
-});
-
 // ─── setColumnsFromResult ───────────────────────────────────────────────────
 
 describe("setColumnsFromResult", () => {

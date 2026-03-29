@@ -15,18 +15,12 @@
 		ColumnConfig
 	} from '../types.js';
 	import { isFilterGroup } from '../types.js';
-	import { quoteIdentifier, resolveFrom } from '../query/builder.js';
 	import FilterConditionComponent from './FilterCondition.svelte';
 	import FilterGroupComponent from './FilterGroup.svelte';
+	import type { QueryAdapter } from '../adapter.js';
 
-	/** Database instance for running suggestion queries (Phase 1 bridge — replaced by adapter in Phase 2) */
-	export let db: any;
-
-	/** Table name for suggestion queries (mutually exclusive with `source`) */
-	export let table: string = '';
-
-	/** Raw SQL subquery source for suggestion queries (mutually exclusive with `table`) */
-	export let source: string = '';
+	/** Query adapter for fetching filter suggestions */
+	export let adapter: QueryAdapter;
 
 	/** Introspected column metadata */
 	export let columns: ColumnMetadata[];
@@ -59,30 +53,14 @@
 	 * Results are cached per column name.
 	 */
 	async function getColumnValues(columnName: string): Promise<string[]> {
-		if (!columnName || (!table && !source)) return [];
+		if (!columnName) return [];
 
 		if (columnValuesCache.has(columnName)) {
 			return columnValuesCache.get(columnName)!;
 		}
 
 		try {
-			const fromClause = resolveFrom(table || undefined, source || undefined);
-			const quotedCol = quoteIdentifier(columnName, allowedColumns);
-
-			// For JSONB columns, extract individual keys instead of whole JSON objects
-			const col = columns.find((c) => c.name === columnName);
-			const cfg = columnConfigs.find((c) => c.name === columnName);
-			const dataType = cfg?.dataType ?? col?.dataType;
-
-			let sql: string;
-			if (dataType === 'json') {
-				sql = `SELECT DISTINCT jsonb_object_keys(${quotedCol}) AS val FROM ${fromClause} WHERE ${quotedCol} IS NOT NULL ORDER BY val LIMIT 200`;
-			} else {
-				sql = `SELECT DISTINCT ${quotedCol}::TEXT AS val FROM ${fromClause} WHERE ${quotedCol} IS NOT NULL ORDER BY val LIMIT 200`;
-			}
-
-			const result = await db.query(sql);
-			const values = result.rows.map((r: any) => String(r.val));
+			const values = await adapter.getDistinctValues(columnName);
 			columnValuesCache.set(columnName, values);
 			return values;
 		} catch {
@@ -96,34 +74,16 @@
 	 * Results are cached per column name.
 	 */
 	async function getNumericRange(columnName: string): Promise<{ min: number; max: number } | null> {
-		if (!columnName || (!table && !source)) return null;
+		if (!columnName) return null;
 
 		if (numericRangeCache.has(columnName)) {
 			return numericRangeCache.get(columnName)!;
 		}
 
-		// Only query for numeric columns
-		const col = columns.find((c) => c.name === columnName);
-		const cfg = columnConfigs.find((c) => c.name === columnName);
-		const dataType = cfg?.dataType ?? col?.dataType;
-		if (dataType !== 'number') {
-			numericRangeCache.set(columnName, null);
-			return null;
-		}
-
 		try {
-			const fromClause = resolveFrom(table || undefined, source || undefined);
-			const quotedCol = quoteIdentifier(columnName, allowedColumns);
-			const sql = `SELECT MIN(${quotedCol})::NUMERIC AS min_val, MAX(${quotedCol})::NUMERIC AS max_val FROM ${fromClause}`;
-			const result = await db.query(sql);
-			const row = result.rows[0] as any;
-			if (row && row.min_val != null && row.max_val != null) {
-				const range = { min: Number(row.min_val), max: Number(row.max_val) };
-				numericRangeCache.set(columnName, range);
-				return range;
-			}
-			numericRangeCache.set(columnName, null);
-			return null;
+			const range = await adapter.getNumericRange(columnName);
+			numericRangeCache.set(columnName, range);
+			return range;
 		} catch {
 			numericRangeCache.set(columnName, null);
 			return null;
@@ -330,9 +290,7 @@
 									<FilterGroupComponent
 										group={node}
 										depth={0}
-										{db}
-										{table}
-										{source}
+										{adapter}
 										{columns}
 										{columnConfigs}
 										{allowedColumns}

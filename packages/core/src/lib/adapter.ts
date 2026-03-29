@@ -4,11 +4,7 @@
 // Adapters are constructed with their data source configuration and passed
 // to GridLite via the `adapter` prop.
 
-import type {
-  ColumnMetadata,
-  FilterNode,
-  FilterLogic,
-} from './types.js';
+import type { ColumnMetadata, FilterNode, FilterLogic } from "./types.js";
 
 // ─── Live Query Handle ──────────────────────────────────────────────────────
 
@@ -77,7 +73,7 @@ export interface QueryAdapter {
   /** Execute a one-shot query and return rows. */
   execute<T = Record<string, unknown>>(
     sql: string,
-    params?: unknown[]
+    params?: unknown[],
   ): Promise<{ rows: T[] }>;
 
   // ── State Persistence ───────────────────────────────────────────────────
@@ -89,7 +85,7 @@ export interface QueryAdapter {
   saveColumnState(
     gridId: string,
     columns: ColumnStateEntry[],
-    viewId?: string
+    viewId?: string,
   ): Promise<void>;
 
   // ── Filter Suggestions ──────────────────────────────────────────────────
@@ -103,7 +99,7 @@ export interface QueryAdapter {
       filters?: FilterNode[];
       filterLogic?: FilterLogic;
       allowedColumns?: string[];
-    }
+    },
   ): Promise<string[]>;
 
   /** Fetch min/max range for a numeric column. */
@@ -115,7 +111,7 @@ export interface QueryAdapter {
       filters?: FilterNode[];
       filterLogic?: FilterLogic;
       allowedColumns?: string[];
-    }
+    },
   ): Promise<{ min: number; max: number } | null>;
 
   // ── Query Source ────────────────────────────────────────────────────────
@@ -125,13 +121,4 @@ export interface QueryAdapter {
 
   /** Returns the raw SQL source if in query mode, or undefined. */
   getSource(): string | undefined;
-
-  // ── Phase 1 Bridge ─────────────────────────────────────────────────────
-
-  /**
-   * Returns the underlying db instance for components not yet migrated
-   * to the adapter interface (FilterBar, FilterGroup).
-   * Removed in Phase 2.
-   */
-  _getDb?(): unknown;
 }

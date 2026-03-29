@@ -1217,9 +1217,7 @@
 				{#if features.filtering}
 					<div class="gridlite-toolbar-filter">
 						<FilterBar
-							db={adapter._getDb?.()}
-							table={adapter.getTable() ?? ''}
-							source={adapter.getSource() ?? ''}
+							{adapter}
 							{columns}
 							columnConfigs={mergedColumnConfigs}
 							{allowedColumns}
@@ -1771,9 +1769,7 @@
 					<div class="gridlite-aggrid-sidebar-section">
 						<div class="gridlite-aggrid-sidebar-header">Filters</div>
 						<FilterBar
-							db={adapter._getDb?.()}
-							table={adapter.getTable() ?? ''}
-							source={adapter.getSource() ?? ''}
+							{adapter}
 							{columns}
 							columnConfigs={mergedColumnConfigs}
 							{allowedColumns}
