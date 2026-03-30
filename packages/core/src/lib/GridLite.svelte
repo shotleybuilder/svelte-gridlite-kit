@@ -338,8 +338,9 @@
 	}
 
 	async function rebuildGroupedQuery() {
-		// Snapshot reactive state — validGrouping may change after awaits
-		const groupingSnapshot = [...validGrouping];
+		// Derive directly from `grouping` — the $: validGrouping reactive declaration
+		// may not have re-run yet when called synchronously from applyConfig()
+		const groupingSnapshot = grouping.filter((g) => g.column !== '');
 		if (groupingSnapshot.length === 0) return;
 
 		try {
@@ -364,7 +365,7 @@
 			});
 
 			// Re-check after await — grouping may have been cleared
-			if (validGrouping.length === 0) return;
+			if (grouping.filter((g) => g.column !== '').length === 0) return;
 
 			// 2. Get total group count for pagination
 			if (usePagination) {
@@ -422,8 +423,8 @@
 	 * If this is the deepest level, fetches detail rows.
 	 */
 	async function fetchGroupChildren(group: GroupRow) {
-		// Snapshot reactive state — validGrouping may change after awaits
-		const groupingSnapshot = [...validGrouping];
+		// Derive directly from `grouping` — see rebuildGroupedQuery comment
+		const groupingSnapshot = grouping.filter((g) => g.column !== '');
 
 		const key = groupKey(group);
 		groupLoading = new Set([...groupLoading, key]);
