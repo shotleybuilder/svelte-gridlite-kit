@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.5.1 — 2026-03-30 (`@shotleybuilder/gridlite-adapter-pglite` only)
+## 0.5.1 — 2026-03-30
+
+### Fixed
+
+- **`applyConfig()` group labels show `(Empty)` due to stale reactive state** — `rebuildGroupedQuery()` and `fetchGroupChildren()` now derive valid grouping directly from the `grouping` variable instead of the `$: validGrouping` reactive declaration, which hasn't re-run yet when called synchronously from `applyConfig()`. Previously, switching between views with different grouping columns would read the previous view's grouping, producing `(Empty)` labels (#26)
+- **`gridlite-adapter-tanstack-db` 0.5.0 published without `dist/`** — Rebuilt and republished as 0.5.1 (#25)
+
+## 0.5.1-pglite — 2026-03-30 (`@shotleybuilder/gridlite-adapter-pglite` only)
 
 ### Fixed
 
