@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 — 2026-03-30 (`@shotleybuilder/gridlite-adapter-pglite` only)
+
+### Fixed
+
+- **Stale PGLite adapter instance** — Version bump to resolve stale adapter dependency in consuming projects
+
 ## 0.5.0 — 2026-03-29
 
 ### Breaking Changes
