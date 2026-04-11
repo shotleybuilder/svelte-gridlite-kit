@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0 — 2026-04-11 (adapter packages only)
+
+### Fixed
+
+- **Adapter peer dependencies use caret range** — `gridlite-adapter-pglite` and `gridlite-adapter-tanstack-db` now declare `"@shotleybuilder/svelte-gridlite-kit": "^0.5.x"` instead of pinning an exact version. Previously, `npm ci` (strict mode) failed with `ERESOLVE` when the installed core version was a newer patch than the pinned peer dep (#27)
+
+### Affected packages
+
+- `@shotleybuilder/gridlite-adapter-pglite` 0.5.1 → 0.6.0
+- `@shotleybuilder/gridlite-adapter-tanstack-db` 0.5.1 → 0.6.0
+
 ## 0.5.1 — 2026-03-30
 
 ### Fixed

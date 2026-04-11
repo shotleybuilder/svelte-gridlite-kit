@@ -102,7 +102,7 @@ importers:
         specifier: ^0.2.0
         version: 0.2.17
       '@shotleybuilder/svelte-gridlite-kit':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       typescript:
         specifier: ^5.0.0
@@ -114,7 +114,7 @@ importers:
   packages/tanstack-db:
     devDependencies:
       '@shotleybuilder/svelte-gridlite-kit':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@tanstack/db':
         specifier: ^0.6.0

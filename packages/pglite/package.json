@@ -1,6 +1,6 @@
 {
   "name": "@shotleybuilder/gridlite-adapter-pglite",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "PGLite adapter for svelte-gridlite-kit",
   "author": "Sertantai",
   "license": "MIT",
@@ -30,11 +30,11 @@
   },
   "peerDependencies": {
     "@electric-sql/pglite": ">=0.2.0",
-    "@shotleybuilder/svelte-gridlite-kit": "workspace:*"
+    "@shotleybuilder/svelte-gridlite-kit": "workspace:^"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.2.0",
-    "@shotleybuilder/svelte-gridlite-kit": "workspace:*",
+    "@shotleybuilder/svelte-gridlite-kit": "workspace:^",
     "typescript": "^5.0.0",
     "vitest": "^2.0.0"
   }
