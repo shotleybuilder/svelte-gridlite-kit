@@ -1,6 +1,6 @@
 {
   "name": "@shotleybuilder/gridlite-adapter-tanstack-db",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "TanStack DB adapter for svelte-gridlite-kit",
   "author": "Sertantai",
   "license": "MIT",

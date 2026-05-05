@@ -150,6 +150,10 @@
 	let totalGroups = 0;
 	let groupLoading: Set<string> = new Set();
 
+	// Live group subscription handles
+	let groupSummaryHandle: LiveQueryHandle | null = null;
+	let groupHandles: Map<string, LiveQueryHandle> = new Map();
+
 	// Row detail state
 	let rowDetailOpen = false;
 	let rowDetailIndex = -1;
@@ -299,6 +303,7 @@
 		}
 
 		// Clear grouped state when not grouping
+		await destroyAllGroupHandles();
 		groupData = [];
 		expandedGroups = new Set();
 		totalGroups = 0;
@@ -337,6 +342,17 @@
 		};
 	}
 
+	async function destroyAllGroupHandles() {
+		if (groupSummaryHandle) {
+			await groupSummaryHandle.destroy();
+			groupSummaryHandle = null;
+		}
+		for (const handle of groupHandles.values()) {
+			await handle.destroy();
+		}
+		groupHandles.clear();
+	}
+
 	async function rebuildGroupedQuery() {
 		// Derive directly from `grouping` — the $: validGrouping reactive declaration
 		// may not have re-run yet when called synchronously from applyConfig()
@@ -344,6 +360,9 @@
 		if (groupingSnapshot.length === 0) return;
 
 		try {
+			// Destroy previous group subscriptions
+			await destroyAllGroupHandles();
+
 			const usePagination = features.pagination !== false;
 
 			// Top-level: group by first column only
@@ -353,21 +372,7 @@
 			const topColumnNames = [topGroupConfig.column];
 			const groupSorting = sorting.filter((s) => topColumnNames.includes(s.column));
 
-			// 1. Fetch top-level group summaries
-			const summaryResult = await adapter.executeGroupSummary({
-				grouping: [topGroupConfig],
-				filters,
-				filterLogic,
-				globalSearch: globalFilter || undefined,
-				sorting: groupSorting,
-				page: usePagination ? page : undefined,
-				pageSize: usePagination ? pageSize : undefined
-			});
-
-			// Re-check after await — grouping may have been cleared
-			if (grouping.filter((g) => g.column !== '').length === 0) return;
-
-			// 2. Get total group count for pagination
+			// Get total group count for pagination
 			if (usePagination) {
 				totalGroups = await adapter.executeGroupCount({
 					grouping: [topGroupConfig],
@@ -378,40 +383,87 @@
 				totalRows = totalGroups;
 			}
 
-			// 3. Build GroupRow[] from summary results
+			// Re-check after await — grouping may have been cleared
+			if (grouping.filter((g) => g.column !== '').length === 0) return;
+
+			// Create live subscription for top-level group summaries
 			const topCol = groupingSnapshot[0].column;
-			const newGroupData: GroupRow[] = summaryResult.rows.map((row) => {
-				const values: Record<string, unknown> = { [topCol]: row[topCol] };
-				const newGroup: GroupRow = {
-					values,
-					summary: { ...row },
-					count: Number(row._count ?? 0),
-					depth: 0,
-					subGroups: null,
-					children: null
-				};
-				const key = groupKey(newGroup);
-				const wasExpanded = expandedGroups.has(key);
-				const existing = groupData.find((g) => groupKey(g) === key);
-				if (wasExpanded && existing) {
-					newGroup.subGroups = existing.subGroups;
-					newGroup.children = existing.children;
-				}
-				return newGroup;
+			groupSummaryHandle = adapter.createLiveGroupSummary({
+				grouping: [topGroupConfig],
+				filters,
+				filterLogic,
+				globalSearch: globalFilter || undefined,
+				sorting: groupSorting,
+				page: usePagination ? page : undefined,
+				pageSize: usePagination ? pageSize : undefined
 			});
 
-			groupData = newGroupData;
+			groupSummaryHandle.subscribe((state) => {
+				if (state.loading) return;
+				if (state.error) {
+					error = state.error.message;
+					return;
+				}
 
-			// 4. Re-fetch sub-groups/children for any groups that were expanded
+				// Build GroupRow[] from live summary results
+				const newGroupData: GroupRow[] = state.rows.map((row) => {
+					const values: Record<string, unknown> = { [topCol]: row[topCol] };
+					const newGroup: GroupRow = {
+						values,
+						summary: { ...row },
+						count: Number(row._count ?? 0),
+						depth: 0,
+						subGroups: null,
+						children: null
+					};
+					// Preserve children/subGroups for expanded groups (they have their own live handles)
+					const key = groupKey(newGroup);
+					const existing = groupData.find((g) => groupKey(g) === key);
+					if (expandedGroups.has(key) && existing) {
+						newGroup.subGroups = existing.subGroups;
+						newGroup.children = existing.children;
+					}
+					return newGroup;
+				});
+
+				groupData = newGroupData;
+
+				// Clean up handles for groups that no longer exist
+				const currentKeys = new Set(newGroupData.map((g) => groupKey(g)));
+				for (const [key, handle] of groupHandles) {
+					if (!currentKeys.has(key)) {
+						handle.destroy();
+						groupHandles.delete(key);
+						expandedGroups = new Set([...expandedGroups].filter((k) => k !== key));
+					}
+				}
+
+				// Unlock the template gate
+				storeState = { ...storeState, loading: false };
+			});
+
+			// Subscribe expanded groups (e.g. after a filter/sort change that rebuilds)
+			// Wait for initial summary data to arrive first
+			await new Promise<void>((resolve) => {
+				if (groupData.length > 0 || !groupSummaryHandle) {
+					resolve();
+					return;
+				}
+				const unsub = groupSummaryHandle.subscribe((state) => {
+					if (!state.loading) {
+						unsub();
+						resolve();
+					}
+				});
+			});
+
+			// Re-subscribe expanded groups
 			for (const group of groupData) {
 				const key = groupKey(group);
-				if (expandedGroups.has(key) && group.subGroups === null && group.children === null) {
+				if (expandedGroups.has(key)) {
 					await fetchGroupChildren(group);
 				}
 			}
-
-			// Unlock the template gate — grouped mode doesn't create a live store
-			storeState = { ...storeState, loading: false };
 		} catch (err) {
 			error = err instanceof Error ? err.message : String(err);
 		}
@@ -427,6 +479,14 @@
 		const groupingSnapshot = grouping.filter((g) => g.column !== '');
 
 		const key = groupKey(group);
+
+		// Destroy existing handle for this group if any
+		const existingHandle = groupHandles.get(key);
+		if (existingHandle) {
+			await existingHandle.destroy();
+			groupHandles.delete(key);
+		}
+
 		groupLoading = new Set([...groupLoading, key]);
 
 		try {
@@ -437,14 +497,14 @@
 			}));
 
 			if (nextDepth < groupingSnapshot.length) {
-				// There are deeper group levels — fetch sub-group summaries
+				// There are deeper group levels — live-subscribe sub-group summaries
 				const subGroupConfig = cleanAgg(groupingSnapshot[nextDepth]);
 
 				// Filter sorting to parent + current level columns only
 				const subColumnNames = groupingSnapshot.slice(0, nextDepth + 1).map((g) => g.column);
 				const groupSorting = sorting.filter((s) => subColumnNames.includes(s.column));
 
-				const result = await adapter.executeGroupSummary({
+				const handle = adapter.createLiveGroupSummary({
 					grouping: [subGroupConfig],
 					filters: [
 						...filters,
@@ -461,26 +521,45 @@
 					sorting: groupSorting
 				});
 
-				const subCol = groupingSnapshot[nextDepth].column;
-				const subGroups: GroupRow[] = result.rows.map((row) => {
-					const subValues: Record<string, unknown> = {
-						...group.values,
-						[subCol]: row[subCol]
-					};
-					return {
-						values: subValues,
-						summary: { ...row },
-						count: Number(row._count ?? 0),
-						depth: nextDepth,
-						subGroups: null,
-						children: null
-					};
-				});
+				groupHandles.set(key, handle);
 
-				updateGroupInTree(key, { subGroups });
+				const subCol = groupingSnapshot[nextDepth].column;
+				handle.subscribe((state) => {
+					if (state.loading) return;
+
+					const subGroups: GroupRow[] = state.rows.map((row) => {
+						const subValues: Record<string, unknown> = {
+							...group.values,
+							[subCol]: row[subCol]
+						};
+						const subGroup: GroupRow = {
+							values: subValues,
+							summary: { ...row },
+							count: Number(row._count ?? 0),
+							depth: nextDepth,
+							subGroups: null,
+							children: null
+						};
+						// Preserve children for expanded sub-groups
+						const subKey = groupKey(subGroup);
+						const existingInTree = findGroupInTree(groupData, subKey);
+						if (expandedGroups.has(subKey) && existingInTree) {
+							subGroup.subGroups = existingInTree.subGroups;
+							subGroup.children = existingInTree.children;
+						}
+						return subGroup;
+					});
+
+					updateGroupInTree(key, { subGroups });
+
+					// Clear loading for this group
+					const next = new Set(groupLoading);
+					next.delete(key);
+					groupLoading = next;
+				});
 			} else {
-				// Deepest level — fetch detail rows
-				const result = await adapter.executeGroupDetail({
+				// Deepest level — live-subscribe detail rows
+				const handle = adapter.createLiveGroupDetail({
 					groupValues: parentValues,
 					filters,
 					filterLogic,
@@ -488,11 +567,21 @@
 					globalSearch: globalFilter || undefined
 				});
 
-				updateGroupInTree(key, { children: result.rows });
+				groupHandles.set(key, handle);
+
+				handle.subscribe((state) => {
+					if (state.loading) return;
+
+					updateGroupInTree(key, { children: state.rows });
+
+					// Clear loading for this group
+					const next = new Set(groupLoading);
+					next.delete(key);
+					groupLoading = next;
+				});
 			}
 		} catch (err) {
 			console.error('Failed to fetch group children:', err);
-		} finally {
 			const next = new Set(groupLoading);
 			next.delete(key);
 			groupLoading = next;
@@ -502,6 +591,18 @@
 	/** Update a group node in the tree by key */
 	function updateGroupInTree(targetKey: string, updates: Partial<GroupRow>) {
 		groupData = groupData.map((g) => updateGroupNode(g, targetKey, updates));
+	}
+
+	/** Find a group node in the tree by key */
+	function findGroupInTree(groups: GroupRow[], targetKey: string): GroupRow | null {
+		for (const g of groups) {
+			if (groupKey(g) === targetKey) return g;
+			if (g.subGroups) {
+				const found = findGroupInTree(g.subGroups, targetKey);
+				if (found) return found;
+			}
+		}
+		return null;
 	}
 
 	function updateGroupNode(node: GroupRow, targetKey: string, updates: Partial<GroupRow>): GroupRow {
@@ -637,6 +738,12 @@
 		if (next.has(key)) {
 			next.delete(key);
 			expandedGroups = next;
+			// Destroy live subscription for this group
+			const handle = groupHandles.get(key);
+			if (handle) {
+				await handle.destroy();
+				groupHandles.delete(key);
+			}
 			// Clear sub-groups and children
 			updateGroupInTree(key, { subGroups: null, children: null });
 		} else {
@@ -1092,6 +1199,13 @@
 		if (store) {
 			store.destroy();
 		}
+		if (groupSummaryHandle) {
+			groupSummaryHandle.destroy();
+		}
+		for (const handle of groupHandles.values()) {
+			handle.destroy();
+		}
+		groupHandles.clear();
 	});
 </script>
 

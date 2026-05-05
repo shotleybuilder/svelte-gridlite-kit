@@ -134,18 +134,14 @@ export interface QueryAdapter {
   /** Execute a count query. Returns the total number of matching rows. */
   executeCount(query: CountDescriptor): Promise<number>;
 
-  /** Execute a group summary query. Returns group header rows with aggregations. */
-  executeGroupSummary(
-    query: GroupSummaryDescriptor,
-  ): Promise<{ rows: Record<string, unknown>[] }>;
+  /** Create a live (reactive) group summary query. Returns group header rows with aggregations. */
+  createLiveGroupSummary(query: GroupSummaryDescriptor): LiveQueryHandle;
 
   /** Execute a group count query. Returns how many distinct groups exist. */
   executeGroupCount(query: GroupCountDescriptor): Promise<number>;
 
-  /** Execute a group detail query. Returns detail rows for an expanded group. */
-  executeGroupDetail(
-    query: GroupDetailDescriptor,
-  ): Promise<{ rows: Record<string, unknown>[] }>;
+  /** Create a live (reactive) group detail query. Returns detail rows for an expanded group. */
+  createLiveGroupDetail(query: GroupDetailDescriptor): LiveQueryHandle;
 
   // ── State Persistence ───────────────────────────────────────────────────
 

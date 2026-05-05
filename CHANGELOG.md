@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.7.0 / 0.6.0 — 2026-05-05
+
+### Breaking Changes
+
+- **`executeGroupSummary()` → `createLiveGroupSummary()`** — Group summary queries now return a `LiveQueryHandle` instead of `Promise<{ rows }>`. Grouped views are reactive: mutations to the underlying data automatically update group counts, aggregations, and detail rows in the UI (#29)
+- **`executeGroupDetail()` → `createLiveGroupDetail()`** — Group detail queries now return a `LiveQueryHandle` instead of `Promise<{ rows }>`. Expanded groups stay in sync with data changes (#29)
+- `executeGroupCount()` remains unchanged (returns `Promise<number>`)
+
+### Migration
+
+Custom adapter implementations must rename and change the return type of two methods:
+
+```diff
+- async executeGroupSummary(query: GroupSummaryDescriptor): Promise<{ rows: Record<string, unknown>[] }> { ... }
++ createLiveGroupSummary(query: GroupSummaryDescriptor): LiveQueryHandle { ... }
+
+- async executeGroupDetail(query: GroupDetailDescriptor): Promise<{ rows: Record<string, unknown>[] }> { ... }
++ createLiveGroupDetail(query: GroupDetailDescriptor): LiveQueryHandle { ... }
+```
+
+### Affected packages
+
+- `@shotleybuilder/svelte-gridlite-kit` 0.5.2 → 0.6.0
+- `@shotleybuilder/gridlite-adapter-pglite` 0.6.0 → 0.7.0
+- `@shotleybuilder/gridlite-adapter-tanstack-db` 0.6.0 → 0.7.0
+
 ## 0.5.2 — 2026-05-05
 
 ### Fixed

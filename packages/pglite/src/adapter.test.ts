@@ -186,7 +186,7 @@ describe("executeCount", () => {
   });
 });
 
-describe("executeGroupSummary", () => {
+describe("createLiveGroupSummary", () => {
   let db: PGliteWithLive;
 
   beforeEach(async () => {
@@ -194,17 +194,30 @@ describe("executeGroupSummary", () => {
     await seedEmployees(db);
   });
 
-  it("returns group summaries with count", async () => {
+  it("returns group summaries with count via subscription", async () => {
     const adapter = new PGLiteAdapter({ db, table: "employees" });
     await adapter.init();
 
-    const result = await adapter.executeGroupSummary({
+    const handle = adapter.createLiveGroupSummary({
       grouping: [{ column: "department" }],
     });
-    expect(result.rows.length).toBe(3);
-    const eng = result.rows.find((r: any) => r.department === "Engineering");
+
+    const state = await new Promise<any>((resolve) => {
+      let unsub: (() => void) | undefined;
+      unsub = handle.subscribe((s) => {
+        if (!s.loading && s.rows.length > 0) {
+          if (unsub) unsub();
+          resolve(s);
+        }
+      });
+    });
+
+    expect(state.rows.length).toBe(3);
+    const eng = state.rows.find((r: any) => r.department === "Engineering");
     expect(eng).toBeDefined();
     expect(Number((eng as any)._count)).toBe(2);
+
+    await handle.destroy();
   });
 });
 
@@ -227,7 +240,7 @@ describe("executeGroupCount", () => {
   });
 });
 
-describe("executeGroupDetail", () => {
+describe("createLiveGroupDetail", () => {
   let db: PGliteWithLive;
 
   beforeEach(async () => {
@@ -235,17 +248,30 @@ describe("executeGroupDetail", () => {
     await seedEmployees(db);
   });
 
-  it("returns detail rows for a group", async () => {
+  it("returns detail rows for a group via subscription", async () => {
     const adapter = new PGLiteAdapter({ db, table: "employees" });
     await adapter.init();
 
-    const result = await adapter.executeGroupDetail({
+    const handle = adapter.createLiveGroupDetail({
       groupValues: [{ column: "department", value: "Engineering" }],
     });
-    expect(result.rows.length).toBe(2);
-    expect(result.rows.every((r: any) => r.department === "Engineering")).toBe(
+
+    const state = await new Promise<any>((resolve) => {
+      let unsub: (() => void) | undefined;
+      unsub = handle.subscribe((s) => {
+        if (!s.loading && s.rows.length > 0) {
+          if (unsub) unsub();
+          resolve(s);
+        }
+      });
+    });
+
+    expect(state.rows.length).toBe(2);
+    expect(state.rows.every((r: any) => r.department === "Engineering")).toBe(
       true,
     );
+
+    await handle.destroy();
   });
 });
 

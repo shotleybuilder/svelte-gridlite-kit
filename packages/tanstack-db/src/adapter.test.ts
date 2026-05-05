@@ -257,21 +257,34 @@ describe("executeCount", () => {
   });
 });
 
-describe("executeGroupSummary", () => {
-  it("returns group summaries with count", async () => {
+describe("createLiveGroupSummary", () => {
+  it("returns group summaries with count via subscription", async () => {
     const { adapter } = await createTestAdapter();
-    const result = await adapter.executeGroupSummary({
+    const handle = adapter.createLiveGroupSummary({
       grouping: [{ column: "department" }],
     });
-    expect(result.rows.length).toBe(3);
-    const eng = result.rows.find((r) => r.department === "Engineering");
+
+    const state = await new Promise<any>((resolve) => {
+      let unsub: (() => void) | undefined;
+      unsub = handle.subscribe((s) => {
+        if (!s.loading && s.rows.length > 0) {
+          if (unsub) unsub();
+          resolve(s);
+        }
+      });
+    });
+
+    expect(state.rows.length).toBe(3);
+    const eng = state.rows.find((r: any) => r.department === "Engineering");
     expect(eng).toBeDefined();
     expect(Number(eng!._count)).toBe(2);
+
+    await handle.destroy();
   });
 
-  it("returns group summaries with aggregations", async () => {
+  it("returns group summaries with aggregations via subscription", async () => {
     const { adapter } = await createTestAdapter();
-    const result = await adapter.executeGroupSummary({
+    const handle = adapter.createLiveGroupSummary({
       grouping: [
         {
           column: "department",
@@ -281,8 +294,21 @@ describe("executeGroupSummary", () => {
         },
       ],
     });
-    const eng = result.rows.find((r) => r.department === "Engineering");
+
+    const state = await new Promise<any>((resolve) => {
+      let unsub: (() => void) | undefined;
+      unsub = handle.subscribe((s) => {
+        if (!s.loading && s.rows.length > 0) {
+          if (unsub) unsub();
+          resolve(s);
+        }
+      });
+    });
+
+    const eng = state.rows.find((r: any) => r.department === "Engineering");
     expect(Number(eng!.total_salary)).toBe(230000);
+
+    await handle.destroy();
   });
 });
 
@@ -296,14 +322,27 @@ describe("executeGroupCount", () => {
   });
 });
 
-describe("executeGroupDetail", () => {
-  it("returns detail rows for a group", async () => {
+describe("createLiveGroupDetail", () => {
+  it("returns detail rows for a group via subscription", async () => {
     const { adapter } = await createTestAdapter();
-    const result = await adapter.executeGroupDetail({
+    const handle = adapter.createLiveGroupDetail({
       groupValues: [{ column: "department", value: "Sales" }],
     });
-    expect(result.rows.length).toBe(2);
-    expect(result.rows.every((r) => r.department === "Sales")).toBe(true);
+
+    const state = await new Promise<any>((resolve) => {
+      let unsub: (() => void) | undefined;
+      unsub = handle.subscribe((s) => {
+        if (!s.loading && s.rows.length > 0) {
+          if (unsub) unsub();
+          resolve(s);
+        }
+      });
+    });
+
+    expect(state.rows.length).toBe(2);
+    expect(state.rows.every((r: any) => r.department === "Sales")).toBe(true);
+
+    await handle.destroy();
   });
 });
 

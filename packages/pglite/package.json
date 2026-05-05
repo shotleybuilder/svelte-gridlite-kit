@@ -1,6 +1,6 @@
 {
   "name": "@shotleybuilder/gridlite-adapter-pglite",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "PGLite adapter for svelte-gridlite-kit",
   "author": "Sertantai",
   "license": "MIT",

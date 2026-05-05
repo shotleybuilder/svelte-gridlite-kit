@@ -38,7 +38,7 @@ import {
   applyPagination,
   applyJsonbFilters,
 } from "./query-translator.js";
-import { createLiveQueryHandle } from "./live.js";
+import { createLiveQueryHandle, createLiveCollectionHandle } from "./live.js";
 import { deriveColumnsFromZodSchema } from "./schema.js";
 import { InMemoryStorage, type StorageProvider } from "./storage.js";
 
@@ -181,9 +181,7 @@ export class TanStackDBAdapter implements QueryAdapter {
     return rows.length;
   }
 
-  async executeGroupSummary(
-    query: GroupSummaryDescriptor,
-  ): Promise<{ rows: Record<string, unknown>[] }> {
+  createLiveGroupSummary(query: GroupSummaryDescriptor): LiveQueryHandle {
     const searchColumns = this.getSearchColumns(query.searchColumns);
     const defaultSortCol = this.getDefaultSortColumn();
     const hasSorting = (query.sorting?.length ?? 0) > 0;
@@ -233,9 +231,7 @@ export class TanStackDBAdapter implements QueryAdapter {
       return chain;
     };
 
-    const result = createLiveQueryCollection(queryFn);
-    const rows = await result.toArrayWhenReady();
-    return { rows: rows as unknown as Record<string, unknown>[] };
+    return createLiveCollectionHandle(queryFn, this.columns);
   }
 
   async executeGroupCount(query: GroupCountDescriptor): Promise<number> {
@@ -270,9 +266,7 @@ export class TanStackDBAdapter implements QueryAdapter {
     return rows.length;
   }
 
-  async executeGroupDetail(
-    query: GroupDetailDescriptor,
-  ): Promise<{ rows: Record<string, unknown>[] }> {
+  createLiveGroupDetail(query: GroupDetailDescriptor): LiveQueryHandle {
     const searchColumns = this.getSearchColumns(query.searchColumns);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -296,9 +290,7 @@ export class TanStackDBAdapter implements QueryAdapter {
       return chain;
     };
 
-    const result = createLiveQueryCollection(queryFn);
-    const rows = await result.toArrayWhenReady();
-    return { rows: rows as unknown as Record<string, unknown>[] };
+    return createLiveCollectionHandle(queryFn, this.columns);
   }
 
   // ─── Filter Suggestions ───────────────────────────────────────────────────

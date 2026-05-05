@@ -161,16 +161,19 @@ export class PGLiteAdapter implements QueryAdapter {
     return parseInt(result.rows[0]?.total ?? "0", 10);
   }
 
-  async executeGroupSummary(
-    query: GroupSummaryDescriptor,
-  ): Promise<{ rows: Record<string, unknown>[] }> {
+  createLiveGroupSummary(query: GroupSummaryDescriptor): LiveQueryHandle {
     const built = buildGroupSummaryQuery({
       ...this.resolveSource(),
       ...query,
       allowedColumns: this.allowedColumns,
     });
-    const result = await this.db.query(built.sql, built.params as any[]);
-    return { rows: result.rows as Record<string, unknown>[] };
+    const store = createLiveQueryStore(this.db, built.sql, built.params);
+    return {
+      subscribe: store.subscribe,
+      refresh: store.refresh,
+      update: async () => { /* no-op for group handles */ },
+      destroy: store.destroy,
+    };
   }
 
   async executeGroupCount(query: GroupCountDescriptor): Promise<number> {
@@ -186,16 +189,19 @@ export class PGLiteAdapter implements QueryAdapter {
     return parseInt(result.rows[0]?.total ?? "0", 10);
   }
 
-  async executeGroupDetail(
-    query: GroupDetailDescriptor,
-  ): Promise<{ rows: Record<string, unknown>[] }> {
+  createLiveGroupDetail(query: GroupDetailDescriptor): LiveQueryHandle {
     const built = buildGroupDetailQuery({
       ...this.resolveSource(),
       ...query,
       allowedColumns: this.allowedColumns,
     });
-    const result = await this.db.query(built.sql, built.params as any[]);
-    return { rows: result.rows as Record<string, unknown>[] };
+    const store = createLiveQueryStore(this.db, built.sql, built.params);
+    return {
+      subscribe: store.subscribe,
+      refresh: store.refresh,
+      update: async () => { /* no-op for group handles */ },
+      destroy: store.destroy,
+    };
   }
 
   // ── State Persistence ─────────────────────────────────────────────────────

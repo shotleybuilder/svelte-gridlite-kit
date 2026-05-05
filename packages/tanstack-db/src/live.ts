@@ -42,6 +42,72 @@ export function waitForReady(collection: Collection): Promise<void> {
 }
 
 /**
+ * Create a LiveQueryHandle from a raw query function.
+ * Simpler variant for group queries that don't need update() support.
+ */
+export function createLiveCollectionHandle(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  queryFn: (q: any) => any,
+  columns: ColumnMetadata[],
+): LiveQueryHandle {
+  const fields = columns.map((c) => ({ name: c.name, dataTypeID: 0 }));
+  let destroyed = false;
+  const subscribers = new Set<(state: LiveQueryState) => void>();
+  const liveCollection = createLiveQueryCollection(queryFn);
+
+  function buildState(): LiveQueryState {
+    const isReady = liveCollection.status === "ready";
+    return {
+      rows: isReady
+        ? (liveCollection.toArray as unknown[] as Record<string, unknown>[])
+        : [],
+      fields,
+      loading: !isReady,
+      error:
+        liveCollection.status === "error"
+          ? new Error("Collection error")
+          : null,
+    };
+  }
+
+  function notify() {
+    if (destroyed) return;
+    const state = buildState();
+    for (const cb of subscribers) {
+      cb(state);
+    }
+  }
+
+  const subscription = liveCollection.subscribeChanges(() => notify(), {
+    includeInitialState: true,
+  });
+
+  return {
+    subscribe(callback: (state: LiveQueryState) => void): () => void {
+      subscribers.add(callback);
+      callback(buildState());
+      return () => {
+        subscribers.delete(callback);
+      };
+    },
+
+    async refresh(): Promise<void> {
+      notify();
+    },
+
+    async update(): Promise<void> {
+      // No-op for group handles — destroy and recreate instead
+    },
+
+    async destroy(): Promise<void> {
+      destroyed = true;
+      subscription.unsubscribe();
+      subscribers.clear();
+    },
+  };
+}
+
+/**
  * Create a LiveQueryHandle that wraps a TanStack DB live query collection.
  */
 export function createLiveQueryHandle(
