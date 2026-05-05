@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.2 — 2026-05-05
+
+### Fixed
+
+- **`applyConfig()` does not support column state** — `applyConfig()` now accepts `columnVisibility`, `columnOrder`, and `columnSizing` options, making it possible to programmatically switch full view configurations including column layout. Previously, only filters, sorting, grouping, globalFilter, pageSize, and page were supported — column state was silently ignored (#28)
+
+### Affected packages
+
+- `@shotleybuilder/svelte-gridlite-kit` 0.5.1 → 0.5.2
+
 ## 0.6.0 — 2026-04-11 (adapter packages only)
 
 ### Fixed

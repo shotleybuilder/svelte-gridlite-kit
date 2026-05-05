@@ -606,6 +606,9 @@
 		if (options.globalFilter !== undefined) globalFilter = options.globalFilter;
 		if (options.pageSize !== undefined) pageSize = options.pageSize;
 		page = options.page ?? 0;
+		if (options.columnVisibility !== undefined) columnVisibility = options.columnVisibility;
+		if (options.columnOrder !== undefined) columnOrder = options.columnOrder;
+		if (options.columnSizing !== undefined) columnSizing = options.columnSizing;
 		rebuildQuery();
 		notifyStateChange();
 	}

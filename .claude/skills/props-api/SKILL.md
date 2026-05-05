@@ -174,5 +174,14 @@ Access via `bind:this`:
   grid.setPage(pageNumber);
   grid.setPageSize(size);
   grid.setGlobalFilter(searchTerm);
+
+  // Batch update — applies all state atomically (single query rebuild)
+  grid.applyConfig({
+    filters, sorting, grouping,
+    columnVisibility: { name: true, id: false },
+    columnOrder: ['name', 'email'],
+    columnSizing: { name: 250 },
+    globalFilter: '', page: 0, pageSize: 50,
+  });
 </script>
 ```

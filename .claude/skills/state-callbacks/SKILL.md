@@ -79,7 +79,39 @@ grid.setPageSize(50);
 
 // Search
 grid.setGlobalFilter('alice');
+
+// Batch update (single rebuildQuery, no race conditions)
+grid.applyConfig({
+  filters: [...],
+  sorting: [...],
+  grouping: [...],
+  globalFilter: '',
+  page: 0,
+  pageSize: 50,
+  columnVisibility: { name: true, email: true, id: false },
+  columnOrder: ['name', 'email', 'department'],
+  columnSizing: { name: 250, email: 300 },
+});
 ```
+
+### ApplyConfigOptions
+
+```typescript
+interface ApplyConfigOptions {
+  filters?: FilterNode[];
+  filterLogic?: 'and' | 'or';
+  sorting?: SortConfig[];
+  grouping?: GroupConfig[];
+  globalFilter?: string;
+  page?: number;
+  pageSize?: number;
+  columnVisibility?: Record<string, boolean>;
+  columnOrder?: string[];
+  columnSizing?: Record<string, number>;
+}
+```
+
+`applyConfig()` applies multiple state changes atomically with a single query rebuild. Use it when switching saved views to avoid intermediate renders and race conditions.
 
 ## View Persistence
 

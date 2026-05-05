@@ -231,6 +231,9 @@ export interface ApplyConfigOptions {
   globalFilter?: string;
   page?: number;
   pageSize?: number;
+  columnVisibility?: Record<string, boolean>;
+  columnOrder?: string[];
+  columnSizing?: Record<string, number>;
 }
 
 // ─── Grid State ─────────────────────────────────────────────────────────────
