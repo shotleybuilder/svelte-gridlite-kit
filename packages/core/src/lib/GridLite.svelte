@@ -449,9 +449,10 @@
 					resolve();
 					return;
 				}
-				const unsub = groupSummaryHandle.subscribe((state) => {
+				let unsub: (() => void) | undefined;
+				unsub = groupSummaryHandle.subscribe((state) => {
 					if (!state.loading) {
-						unsub();
+						unsub?.();
 						resolve();
 					}
 				});

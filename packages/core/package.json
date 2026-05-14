@@ -1,6 +1,6 @@
 {
   "name": "@shotleybuilder/svelte-gridlite-kit",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "SQL-native data grid component for Svelte — core package",
   "author": "Sertantai",
   "license": "MIT",

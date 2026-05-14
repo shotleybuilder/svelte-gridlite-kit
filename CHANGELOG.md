@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.1 — 2026-05-14
+
+### Fixed
+
+- **Temporal dead zone error on synchronous subscribe callback** — `GridLite.svelte` crashed with `can't access lexical declaration 'unsub' before initialization` when `createLiveGroupSummary` returned a handle whose initial state had `loading: false`, causing the subscribe callback to fire synchronously before the `const unsub` assignment completed. Fixed by using `let` with optional chaining (`unsub?.()`) (#31)
+
+### Affected packages
+
+- `@shotleybuilder/svelte-gridlite-kit` 0.6.0 → 0.6.1
+
 ## 0.7.1 — 2026-05-14 (adapter packages only)
 
 ### Fixed
