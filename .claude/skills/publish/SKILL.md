@@ -36,11 +36,11 @@ Run from the monorepo root. npm will send an OTP to the registered email for eac
 
 ```bash
 # Core first (adapters depend on it)
-cd packages/core && npm publish --access public && cd ../..
+cd packages/core && pnpm publish --access public --no-git-checks && cd ../..
 
 # Then adapters (order doesn't matter between these two)
-cd packages/pglite && npm publish --access public && cd ../..
-cd packages/tanstack-db && npm publish --access public && cd ../..
+cd packages/pglite && pnpm publish --access public --no-git-checks && cd ../..
+cd packages/tanstack-db && pnpm publish --access public --no-git-checks && cd ../..
 ```
 
 ## Post-publish verification
@@ -56,4 +56,5 @@ npm view @shotleybuilder/gridlite-adapter-tanstack-db version
 - The `CI=true` env var is needed because pnpm on this system (Fedora Bluefin, immutable OS) runs via `npx pnpm` and requires it to skip TTY prompts.
 - Core has a `prepublishOnly` script that runs `svelte-package + publint` automatically.
 - The demo package (`packages/demo/`) is private and is NOT published.
-- npm 2FA is configured with email OTP — you'll receive a code for each `npm publish`.
+- **Must use `pnpm publish`, not `npm publish`.** pnpm resolves `workspace:^` references in peerDependencies to real semver ranges. `npm publish` leaks the raw `workspace:` protocol, breaking consumers (see issue #30).
+- npm 2FA is configured with email OTP — you'll receive a code for each publish.

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.1 — 2026-05-14 (adapter packages only)
+
+### Fixed
+
+- **Adapter packages publish `workspace:^` as peerDependency** — `npm install` in consuming projects failed with `EUNSUPPORTEDPROTOCOL` because v0.7.0 was published with `npm publish`, which doesn't resolve pnpm's `workspace:` protocol. Publish tooling now uses `pnpm publish` so `workspace:^` is correctly resolved to a real semver range (e.g. `^0.6.0`) (#30)
+
+### Affected packages
+
+- `@shotleybuilder/gridlite-adapter-pglite` 0.7.0 → 0.7.1
+- `@shotleybuilder/gridlite-adapter-tanstack-db` 0.7.0 → 0.7.1
+
 ## 0.7.0 / 0.6.0 — 2026-05-05
 
 ### Breaking Changes
