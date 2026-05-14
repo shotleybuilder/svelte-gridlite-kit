@@ -30,17 +30,27 @@ Publish all three svelte-gridlite-kit packages to npm. Use when releasing a new 
    npm view @shotleybuilder/gridlite-adapter-tanstack-db version
    ```
 
+## Login
+
+The user must log in to npm before publishing. Prompt them to run this themselves:
+
+```bash
+npm login
+```
+
+This is interactive (opens a browser) so the user must run it manually via `! npm login` in the prompt.
+
 ## Publish commands
 
 Run from the monorepo root. npm will send an OTP to the registered email for each publish.
 
 ```bash
 # Core first (adapters depend on it)
-cd packages/core && pnpm publish --access public --no-git-checks && cd ../..
+cd packages/core && npx pnpm publish --access public --no-git-checks && cd ../..
 
 # Then adapters (order doesn't matter between these two)
-cd packages/pglite && pnpm publish --access public --no-git-checks && cd ../..
-cd packages/tanstack-db && pnpm publish --access public --no-git-checks && cd ../..
+cd packages/pglite && npx pnpm publish --access public --no-git-checks && cd ../..
+cd packages/tanstack-db && npx pnpm publish --access public --no-git-checks && cd ../..
 ```
 
 ## Post-publish verification
