@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0 / 0.8.0 — 2026-05-16
+
+### Added
+
+- **`in` filter operator for set membership filtering** — New `in` operator checks whether a column value is a member of a provided array of values. Applied programmatically via `gridRef.setFilters()` (no FilterBar UI widget). SQL emits parameterized `WHERE "col" IN ($1, $2, ...)`. TanStack DB adapter uses `Set<string>` for O(1) per-row lookups. (#32)
+
+### Affected packages
+
+- `@shotleybuilder/svelte-gridlite-kit` 0.6.1 → 0.7.0
+- `@shotleybuilder/gridlite-adapter-tanstack-db` 0.7.1 → 0.8.0
+
 ## 0.6.1 — 2026-05-14
 
 ### Fixed

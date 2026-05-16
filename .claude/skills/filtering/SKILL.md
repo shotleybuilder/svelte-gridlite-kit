@@ -26,6 +26,7 @@ Operators are auto-selected based on column type (detected from schema):
 | **date** | equals, not_equals, is_before, is_after, is_empty, is_not_empty |
 | **boolean** | equals, is_empty, is_not_empty |
 | **json** | jsonb_has_key, jsonb_not_has_key, is_empty, is_not_empty |
+| **any (programmatic)** | in |
 
 ## Default Filters on Load
 
@@ -122,6 +123,20 @@ const filters: FilterCondition[] = [
 - Supported operators: `equals`, `not_equals`, `greater_than`, `less_than`, `greater_or_equal`, `less_or_equal`, `is_before`, `is_after`
 - `intervalOffset` is optional and validated against a strict regex pattern (`\d+ (second|minute|hour|day|week|month|year)s?`)
 - The FilterCondition UI shows a toggle button to switch between literal value and column comparison modes
+
+## Set Membership (`in` operator)
+
+The `in` operator filters rows where a column value matches any item in an array. Applied programmatically only (not available in the FilterBar UI):
+
+```typescript
+grid.setFilters([
+  { id: 'session-filter', field: 'name', operator: 'in', value: ['Alice', 'Bob', 'Charlie'] }
+], 'and');
+```
+
+- SQL: `WHERE "name" IN ($1, $2, $3)` (parameterized)
+- TanStack DB: Uses `Set<string>` for O(1) per-row membership checks
+- Empty array produces no matches (`FALSE`)
 
 ## How It Works (SQL)
 

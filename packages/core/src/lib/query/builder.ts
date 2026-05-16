@@ -249,6 +249,19 @@ function buildConditionSQL(
     case "is_after":
       return { sql: `${quotedCol} > ${p()}`, params: [condition.value] };
 
+    // Set membership
+    case "in": {
+      const values = condition.value as unknown[];
+      if (!Array.isArray(values) || values.length === 0) {
+        return { sql: `FALSE`, params: [] };
+      }
+      const placeholders = values.map((_, i) => `$${paramIndex + i}`).join(", ");
+      return {
+        sql: `${quotedCol} IN (${placeholders})`,
+        params: [...values],
+      };
+    }
+
     // JSONB operators
     case "jsonb_has_key":
       return { sql: `${quotedCol} ? ${p()}::text`, params: [condition.value] };

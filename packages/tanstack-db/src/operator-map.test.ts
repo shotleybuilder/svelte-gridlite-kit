@@ -13,7 +13,7 @@ import {
 } from "@tanstack/db";
 import type { Collection } from "@tanstack/db";
 import type { FilterCondition } from "@shotleybuilder/svelte-gridlite-kit/types";
-import { applyFilters } from "./query-translator.js";
+import { applyFilters, applyJsonbFilters } from "./query-translator.js";
 
 // ─── Test data ────────────────────────────────────────────────────────────────
 
@@ -84,6 +84,7 @@ async function queryWithFilter(
   const queryFn = (q: any) => {
     let chain = q.from({ source: coll });
     chain = applyFilters(chain, [condition], "and");
+    chain = applyJsonbFilters(chain, [condition]);
     return chain;
   };
   const result = createLiveQueryCollection(queryFn);
@@ -280,6 +281,51 @@ describe("intervalOffset", () => {
         () => ({}),
       );
     }).toThrow("does not support interval offsets");
+  });
+});
+
+describe("in", () => {
+  it("filters to rows matching any value in the set", async () => {
+    const rows = await queryWithFilter(collection, {
+      id: "f1",
+      field: "department",
+      operator: "in",
+      value: ["Engineering", "Marketing"],
+    });
+    expect(rows.length).toBe(3); // Alice, Bob (Engineering), Eve (Marketing)
+    const names = rows.map((r) => r.name).sort();
+    expect(names).toEqual(["Alice", "Bob", "Eve"]);
+  });
+
+  it("single value in set", async () => {
+    const rows = await queryWithFilter(collection, {
+      id: "f1",
+      field: "name",
+      operator: "in",
+      value: ["Charlie"],
+    });
+    expect(rows.length).toBe(1);
+    expect(rows[0].name).toBe("Charlie");
+  });
+
+  it("empty array returns no rows", async () => {
+    const rows = await queryWithFilter(collection, {
+      id: "f1",
+      field: "name",
+      operator: "in",
+      value: [],
+    });
+    expect(rows.length).toBe(0);
+  });
+
+  it("no match returns no rows", async () => {
+    const rows = await queryWithFilter(collection, {
+      id: "f1",
+      field: "name",
+      operator: "in",
+      value: ["NonExistent", "Nobody"],
+    });
+    expect(rows.length).toBe(0);
   });
 });
 

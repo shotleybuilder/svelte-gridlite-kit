@@ -219,6 +219,56 @@ describe("buildWhereClause — JSONB operators", () => {
   });
 });
 
+// ─── buildWhereClause — IN operator ─────────────────────────────────────────
+
+describe("buildWhereClause — IN operator", () => {
+  it("generates IN clause with parameterized values", () => {
+    const result = buildWhereClause([
+      fc("name", "in", ["Alice", "Bob", "Charlie"]),
+    ]);
+    expect(result.sql).toBe('WHERE "name" IN ($1, $2, $3)');
+    expect(result.params).toEqual(["Alice", "Bob", "Charlie"]);
+  });
+
+  it("single value", () => {
+    const result = buildWhereClause([fc("status", "in", ["active"])]);
+    expect(result.sql).toBe('WHERE "status" IN ($1)');
+    expect(result.params).toEqual(["active"]);
+  });
+
+  it("empty array returns FALSE", () => {
+    const result = buildWhereClause([fc("name", "in", [])]);
+    expect(result.sql).toBe("WHERE FALSE");
+    expect(result.params).toEqual([]);
+  });
+
+  it("non-array value returns FALSE", () => {
+    const result = buildWhereClause([fc("name", "in", "not-an-array")]);
+    expect(result.sql).toBe("WHERE FALSE");
+    expect(result.params).toEqual([]);
+  });
+
+  it("correctly indexes params when combined with other conditions", () => {
+    const result = buildWhereClause([
+      fc("active", "equals", true),
+      fc("department", "in", ["Sales", "Engineering"]),
+      fc("salary", "greater_than", 100000),
+    ]);
+    expect(result.sql).toBe(
+      'WHERE "active" = $1 AND "department" IN ($2, $3) AND "salary" > $4',
+    );
+    expect(result.params).toEqual([true, "Sales", "Engineering", 100000]);
+  });
+
+  it("parameterizes values (SQL injection safe)", () => {
+    const malicious = ["'; DROP TABLE users;--", "normal"];
+    const result = buildWhereClause([fc("name", "in", malicious)]);
+    expect(result.sql).toBe('WHERE "name" IN ($1, $2)');
+    expect(result.params).toEqual(malicious);
+    expect(result.sql).not.toContain(malicious[0]);
+  });
+});
+
 // ─── buildWhereClause — Logic and edge cases ────────────────────────────────
 
 describe("buildWhereClause — compound and edge cases", () => {

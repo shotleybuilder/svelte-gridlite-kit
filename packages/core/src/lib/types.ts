@@ -167,6 +167,8 @@ export type FilterOperator =
   // Date operators
   | "is_before"
   | "is_after"
+  // Set membership
+  | "in"
   // JSONB operators
   | "jsonb_has_key"
   | "jsonb_not_has_key";

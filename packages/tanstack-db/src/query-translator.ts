@@ -69,12 +69,12 @@ function translateNode(node: FilterNode, source: ContextProxy): unknown | null {
   // Leaf condition
   if (!node.field) return null;
 
-  // JSONB operators need fn.where() fallback — skip in expression tree
+  // Operators that need fn.where() fallback — skip in expression tree
   if (
+    node.operator === "in" ||
     node.operator === "jsonb_has_key" ||
     node.operator === "jsonb_not_has_key"
   ) {
-    // Cannot express in D2 expression tree; handled separately
     return null;
   }
 
@@ -153,7 +153,7 @@ export function applyPagination(
 }
 
 /**
- * Apply JSONB functional fallback filters via fn.where().
+ * Apply functional fallback filters via fn.where().
  * These cannot be expressed in the D2 expression tree.
  */
 export function applyJsonbFilters(
@@ -162,9 +162,22 @@ export function applyJsonbFilters(
 ): QueryChain {
   if (!filters) return chain;
 
-  const jsonbConditions = collectJsonbConditions(filters);
-  for (const cond of jsonbConditions) {
-    if (cond.operator === "jsonb_has_key") {
+  const fallbackConditions = collectFallbackConditions(filters);
+  for (const cond of fallbackConditions) {
+    if (cond.operator === "in") {
+      const values = cond.value as unknown[];
+      if (!Array.isArray(values) || values.length === 0) {
+        chain = chain.fn.where(() => false);
+      } else {
+        const set = new Set(values.map(String));
+        chain = chain.fn.where(
+          (row: Record<string, Record<string, unknown>>) => {
+            const val = row.source[cond.field];
+            return val != null && set.has(String(val));
+          },
+        );
+      }
+    } else if (cond.operator === "jsonb_has_key") {
       chain = chain.fn.where((row: Record<string, Record<string, unknown>>) => {
         const obj = row.source[cond.field];
         if (obj == null || typeof obj !== "object") return false;
@@ -181,14 +194,15 @@ export function applyJsonbFilters(
   return chain;
 }
 
-function collectJsonbConditions(
+function collectFallbackConditions(
   nodes: FilterNode[],
 ): Array<{ field: string; operator: string; value: unknown }> {
   const result: Array<{ field: string; operator: string; value: unknown }> = [];
   for (const node of nodes) {
     if (isFilterGroup(node)) {
-      result.push(...collectJsonbConditions(node.children));
+      result.push(...collectFallbackConditions(node.children));
     } else if (
+      node.operator === "in" ||
       node.operator === "jsonb_has_key" ||
       node.operator === "jsonb_not_has_key"
     ) {

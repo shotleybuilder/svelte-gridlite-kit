@@ -78,6 +78,9 @@ export function translateCondition(
       return or(isNull(fieldRef), eq(fieldRef, ""));
     case "is_not_empty":
       return and(not(isNull(fieldRef)), not(eq(fieldRef, "")));
+    case "in":
+      // Handled via fn.where() fallback for O(1) Set-based membership check
+      return null;
     case "jsonb_has_key":
     case "jsonb_not_has_key":
       // These require fn.where() functional fallback — handled at the translator level
