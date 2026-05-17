@@ -1,0 +1,1 @@
+- [Environment](user_environment.md) — Bluefin Fedora, use `npx pnpm` not `pnpm`

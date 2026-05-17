@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.1 — 2026-05-17
+
+### Fixed
+
+- **Columns marked visible don't render when added after initial grid state creation** — `init()` only restored custom labels from persisted column state, discarding visibility, order, and widths. Columns added to the schema after initial state persistence appeared checked in the ColumnPicker but were excluded from the render list because they weren't in the persisted `columnOrder`. Now `init()` restores the full column state and appends new columns to the end of the order. (#33)
+
+### Affected packages
+
+- `@shotleybuilder/svelte-gridlite-kit` 0.7.0 → 0.7.1
+
 ## 0.7.0 / 0.8.0 — 2026-05-16
 
 ### Added

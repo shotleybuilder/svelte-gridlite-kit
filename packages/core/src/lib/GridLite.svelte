@@ -261,14 +261,41 @@
 			// Table mode returns columns from introspect(); query mode returns empty
 			// (columns will be derived from live query result fields later)
 
-			// Load persisted custom labels
+			// Load persisted column state (labels, visibility, order, widths)
 			if (config?.id) {
 				const savedState = await adapter.loadColumnState(config.id);
-				const labels: Record<string, string> = {};
-				for (const col of savedState) {
-					if (col.label) labels[col.name] = col.label;
+				if (savedState.length > 0) {
+					const labels: Record<string, string> = {};
+					const visibility: Record<string, boolean> = {};
+					const widths: Record<string, number> = {};
+					const currentColumnNames = new Set(columns.map((c) => c.name));
+
+					// Sort by position to reconstruct order
+					const sorted = [...savedState].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+					const order: string[] = [];
+
+					for (const col of sorted) {
+						// Only restore state for columns that still exist in the schema
+						if (!currentColumnNames.has(col.name)) continue;
+
+						if (col.label) labels[col.name] = col.label;
+						visibility[col.name] = col.visible;
+						if (col.width != null) widths[col.name] = col.width;
+						if (col.position != null) order.push(col.name);
+					}
+
+					// Append any new columns (in schema but not in saved state) to the end
+					for (const col of columns) {
+						if (!order.includes(col.name)) {
+							order.push(col.name);
+						}
+					}
+
+					if (Object.keys(labels).length > 0) customLabels = labels;
+					if (Object.keys(visibility).length > 0) columnVisibility = visibility;
+					if (Object.keys(widths).length > 0) columnSizing = { ...columnSizing, ...widths };
+					if (order.length > 0) columnOrder = order;
 				}
-				if (Object.keys(labels).length > 0) customLabels = labels;
 			}
 
 			initialized = true;
