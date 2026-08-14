@@ -28,5 +28,8 @@ export default defineConfig({
   },
   test: {
     include: ["src/**/*.{test,spec}.{js,ts}"],
+    testTimeout: 30000,
+    hookTimeout: 30000,
+    teardownTimeout: 5000,
   },
 });

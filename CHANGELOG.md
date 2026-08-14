@@ -1,14 +1,14 @@
 # Changelog
 
-## 0.7.2 — 2026-08-14 (adapter packages only)
+## 0.7.3 — 2026-08-14 (adapter packages only)
 
 ### Fixed
 
-- **PGLite 0.5.x compatibility** — Updated `@electric-sql/pglite` devDependency from `^0.2.0` to `^0.5.0` across core, pglite adapter, and demo packages. The peer dependency (`>=0.2.0`) already allowed 0.5.x, but the published adapter at 0.7.1 resolved `workspace:^` to `@shotleybuilder/svelte-gridlite-kit@"^0.6.0"`, blocking consumers on core 0.7.x. Re-publishing resolves the peer dep to `^0.7.0`. (#35)
+- **PGLite 0.5.x compatibility** — Updated `@electric-sql/pglite` devDependency from `^0.2.0` to `^0.5.0` across core, pglite adapter, and demo packages. Hardcoded `svelte-gridlite-kit` peer dep to `^0.7.0` (replacing `workspace:^` which leaked into 0.7.2 via `npm publish`). (#35)
 
 ### Affected packages
 
-- `@shotleybuilder/gridlite-adapter-pglite` 0.7.1 → 0.7.2
+- `@shotleybuilder/gridlite-adapter-pglite` 0.7.1 → 0.7.3
 
 ## 0.7.1 — 2026-05-17
 
