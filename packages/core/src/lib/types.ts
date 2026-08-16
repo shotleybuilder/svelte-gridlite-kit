@@ -73,6 +73,9 @@ export interface GridConfig {
   /** Default global search term applied on load */
   defaultGlobalSearch?: string;
 
+  /** Default aggregate filters (HAVING) applied on load */
+  defaultAggregateFilters?: AggregateFilter[];
+
   /** Pagination config */
   pagination?: {
     pageSize: number;
@@ -212,6 +215,28 @@ export interface AggregationConfig {
 
 export type AggregateFunction = "count" | "sum" | "avg" | "min" | "max";
 
+// ─── Aggregate Filters (HAVING) ────────────────────────────────────────────
+
+export type AggregateFilterOperator =
+  | "greater_than"
+  | "less_than"
+  | "greater_or_equal"
+  | "less_or_equal"
+  | "equals"
+  | "not_equals";
+
+export interface AggregateFilter {
+  id: string;
+  /** Aggregate function to filter on */
+  function: AggregateFunction;
+  /** Column to aggregate (omit for COUNT(*)) */
+  column?: string;
+  /** Comparison operator */
+  operator: AggregateFilterOperator;
+  /** Comparison value */
+  value: number;
+}
+
 // ─── View Presets ───────────────────────────────────────────────────────────
 
 export interface ViewPreset {
@@ -222,6 +247,7 @@ export interface ViewPreset {
   filterLogic?: FilterLogic;
   sorting?: SortConfig[];
   grouping?: GroupConfig[];
+  aggregateFilters?: AggregateFilter[];
   columnVisibility?: Record<string, boolean>;
   columnOrder?: string[];
 }
@@ -233,6 +259,7 @@ export interface ApplyConfigOptions {
   filterLogic?: FilterLogic;
   sorting?: SortConfig[];
   grouping?: GroupConfig[];
+  aggregateFilters?: AggregateFilter[];
   globalFilter?: string;
   page?: number;
   pageSize?: number;
@@ -251,6 +278,7 @@ export interface GridState {
   filterLogic: FilterLogic;
   sorting: SortConfig[];
   grouping: GroupConfig[];
+  aggregateFilters: AggregateFilter[];
   globalFilter: string;
   pagination: {
     page: number;

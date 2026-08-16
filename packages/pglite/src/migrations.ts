@@ -70,6 +70,14 @@ const MIGRATIONS: Migration[] = [
 			ALTER TABLE _gridlite_column_state ADD COLUMN IF NOT EXISTS label TEXT;
 		`,
   },
+  {
+    version: 3,
+    description:
+      "Add aggregate_filters column to views table for HAVING clause support",
+    sql: `
+			ALTER TABLE _gridlite_views ADD COLUMN IF NOT EXISTS aggregate_filters JSONB DEFAULT '[]';
+		`,
+  },
 ];
 
 // ─── Migration Runner ───────────────────────────────────────────────────────

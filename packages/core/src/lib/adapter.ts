@@ -5,6 +5,7 @@
 // to GridLite via the `adapter` prop.
 
 import type {
+  AggregateFilter,
   ColumnMetadata,
   FilterNode,
   FilterLogic,
@@ -79,6 +80,7 @@ export interface GroupSummaryDescriptor {
   pageSize?: number;
   globalSearch?: string;
   searchColumns?: string[];
+  aggregateFilters?: AggregateFilter[];
 }
 
 /** Descriptor for counting distinct groups. */
@@ -88,6 +90,7 @@ export interface GroupCountDescriptor {
   filterLogic?: FilterLogic;
   globalSearch?: string;
   searchColumns?: string[];
+  aggregateFilters?: AggregateFilter[];
 }
 
 /** Descriptor for detail rows within an expanded group. */

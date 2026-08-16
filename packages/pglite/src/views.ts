@@ -10,6 +10,7 @@
 
 import type { PGlite } from "@electric-sql/pglite";
 import type {
+  AggregateFilter,
   FilterCondition,
   FilterLogic,
   SortConfig,
@@ -28,6 +29,7 @@ interface ViewRow {
   filter_logic: string;
   sorting: SortConfig[];
   grouping: GroupConfig[];
+  aggregate_filters: AggregateFilter[];
   column_visibility: Record<string, boolean>;
   column_order: string[];
   is_default: boolean;
@@ -57,8 +59,8 @@ export async function saveView(
 ): Promise<void> {
   await db.query(
     `INSERT INTO _gridlite_views
-			(id, grid_id, name, description, filters, filter_logic, sorting, grouping, column_visibility, column_order, is_default, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, false, CURRENT_TIMESTAMP)
+			(id, grid_id, name, description, filters, filter_logic, sorting, grouping, aggregate_filters, column_visibility, column_order, is_default, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, false, CURRENT_TIMESTAMP)
 		 ON CONFLICT (id) DO UPDATE SET
 			name = $3,
 			description = $4,
@@ -66,8 +68,9 @@ export async function saveView(
 			filter_logic = $6,
 			sorting = $7,
 			grouping = $8,
-			column_visibility = $9,
-			column_order = $10,
+			aggregate_filters = $9,
+			column_visibility = $10,
+			column_order = $11,
 			updated_at = CURRENT_TIMESTAMP`,
     [
       view.id,
@@ -78,6 +81,7 @@ export async function saveView(
       view.filterLogic ?? "and",
       JSON.stringify(view.sorting ?? []),
       JSON.stringify(view.grouping ?? []),
+      JSON.stringify(view.aggregateFilters ?? []),
       JSON.stringify(view.columnVisibility ?? {}),
       JSON.stringify(view.columnOrder ?? []),
     ],
@@ -247,6 +251,7 @@ function rowToViewPreset(row: ViewRow): ViewPreset {
     filterLogic: row.filter_logic as FilterLogic,
     sorting: row.sorting as SortConfig[],
     grouping: row.grouping as GroupConfig[],
+    aggregateFilters: (row.aggregate_filters ?? []) as AggregateFilter[],
     columnVisibility: row.column_visibility as Record<string, boolean>,
     columnOrder: row.column_order as string[],
   };

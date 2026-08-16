@@ -10,6 +10,8 @@
  */
 
 import type {
+  AggregateFilter,
+  AggregateFilterOperator,
   FilterCondition,
   FilterLogic,
   FilterNode,
@@ -386,6 +388,117 @@ export function buildOrderByClause(
   return `ORDER BY ${parts.join(", ")}`;
 }
 
+// ─── HAVING Clause Builder ──────────────────────────────────────────────────
+
+function mapAggregateOperator(op: AggregateFilterOperator): string {
+  switch (op) {
+    case "greater_than":
+      return ">";
+    case "less_than":
+      return "<";
+    case "greater_or_equal":
+      return ">=";
+    case "less_or_equal":
+      return "<=";
+    case "equals":
+      return "=";
+    case "not_equals":
+      return "!=";
+    default:
+      throw new Error(`Unknown aggregate filter operator: ${op}`);
+  }
+}
+
+/**
+ * Build a HAVING clause from aggregate filter conditions.
+ *
+ * Generates `HAVING COUNT(*) > $1 AND SUM("salary") >= $2` etc.
+ * All values are parameterized. Column names go through quoteIdentifier.
+ */
+export function buildHavingClause(
+  aggregateFilters: AggregateFilter[],
+  paramOffset: number = 0,
+  allowedColumns?: string[],
+): ParameterizedQuery {
+  if (aggregateFilters.length === 0) {
+    return { sql: "", params: [] };
+  }
+
+  const parts: string[] = [];
+  const params: unknown[] = [];
+  let paramIndex = paramOffset + 1;
+
+  for (const af of aggregateFilters) {
+    if (!VALID_AGGREGATES.includes(af.function)) {
+      throw new Error(`Invalid aggregate function: ${af.function}`);
+    }
+
+    let aggExpr: string;
+    if (af.function === "count" && (!af.column || af.column === "*")) {
+      aggExpr = "COUNT(*)";
+    } else if (af.column) {
+      const col = quoteIdentifier(af.column, allowedColumns);
+      aggExpr = `${af.function.toUpperCase()}(${col})`;
+    } else {
+      throw new Error("Non-count aggregate filters require a column");
+    }
+
+    const op = mapAggregateOperator(af.operator);
+    parts.push(`${aggExpr} ${op} $${paramIndex}`);
+    params.push(af.value);
+    paramIndex++;
+  }
+
+  return {
+    sql: `HAVING ${parts.join(" AND ")}`,
+    params,
+  };
+}
+
+// ─── Group ORDER BY Clause Builder ─────────────────────────────────────────
+
+/** Virtual column names valid in GROUP BY sort contexts */
+export const GROUP_VIRTUAL_COLUMNS = ["_count"] as const;
+export type GroupVirtualColumn = (typeof GROUP_VIRTUAL_COLUMNS)[number];
+
+/**
+ * Build an ORDER BY clause for grouped queries.
+ *
+ * Allows sorting by group columns and virtual columns like `_count`.
+ * The `_count` virtual column maps to `COUNT(*)` in the SQL output.
+ * Non-group, non-virtual columns are silently filtered out.
+ */
+export function buildGroupOrderByClause(
+  sorting: SortConfig[],
+  groupColumns: string[],
+  allowedColumns?: string[],
+): string {
+  if (sorting.length === 0) return "";
+
+  const validColumns = new Set<string>([
+    ...groupColumns,
+    ...GROUP_VIRTUAL_COLUMNS,
+  ]);
+
+  const parts = sorting
+    .filter((s) => validColumns.has(s.column))
+    .map((s) => {
+      const dir = s.direction === "desc" ? "DESC" : "ASC";
+      if (
+        GROUP_VIRTUAL_COLUMNS.includes(s.column as GroupVirtualColumn)
+      ) {
+        if (s.column === "_count") {
+          return `COUNT(*) ${dir}`;
+        }
+      }
+      const col = quoteIdentifier(s.column, allowedColumns);
+      return `${col} ${dir}`;
+    });
+
+  if (parts.length === 0) return "";
+  return `ORDER BY ${parts.join(", ")}`;
+}
+
 // ─── GROUP BY Clause Builder ────────────────────────────────────────────────
 
 const VALID_AGGREGATES: AggregateFunction[] = [
@@ -514,6 +627,8 @@ export interface GroupSummaryOptions {
   page?: number;
   /** Page size for groups */
   pageSize?: number;
+  /** Aggregate filters (HAVING clause) */
+  aggregateFilters?: AggregateFilter[];
 }
 
 /**
@@ -539,6 +654,7 @@ export function buildGroupSummaryQuery(
     sorting = [],
     page,
     pageSize,
+    aggregateFilters = [],
   } = options;
 
   if (grouping.length === 0) {
@@ -568,7 +684,7 @@ export function buildGroupSummaryQuery(
     allowedColumns,
   );
 
-  const allParams = [...where.params, ...globalSearchClause.params];
+  let allParams = [...where.params, ...globalSearchClause.params];
   let whereSQL = "";
   if (where.sql && globalSearchClause.sql) {
     whereSQL = `WHERE ${where.sql.replace(/^WHERE /, "")} AND ${globalSearchClause.sql}`;
@@ -578,16 +694,25 @@ export function buildGroupSummaryQuery(
     whereSQL = `WHERE ${globalSearchClause.sql}`;
   }
 
+  // HAVING from aggregate filters
+  const having = buildHavingClause(
+    aggregateFilters,
+    allParams.length,
+    allowedColumns,
+  );
+  allParams = [...allParams, ...having.params];
+
   // Sort by group columns if no explicit sort, or by specified sort
+  const groupCols = grouping.map((g) => g.column);
   let orderBy = "";
   if (sorting.length > 0) {
-    orderBy = buildOrderByClause(sorting, allowedColumns);
+    orderBy = buildGroupOrderByClause(sorting, groupCols, allowedColumns);
   } else {
     // Default: sort by group columns ascending
-    const groupCols = grouping.map((g) =>
-      quoteIdentifier(g.column, allowedColumns),
+    const quotedGroupCols = groupCols.map((c) =>
+      quoteIdentifier(c, allowedColumns),
     );
-    orderBy = `ORDER BY ${groupCols.join(", ")}`;
+    orderBy = `ORDER BY ${quotedGroupCols.join(", ")}`;
   }
 
   // Pagination on groups
@@ -601,6 +726,7 @@ export function buildGroupSummaryQuery(
     `FROM ${fromClause}`,
     whereSQL,
     groupBy,
+    having.sql,
     orderBy,
     pagination,
   ].filter(Boolean);
@@ -623,6 +749,7 @@ export function buildGroupCountQuery(
     allowedColumns,
     globalSearch,
     searchColumns,
+    aggregateFilters = [],
   } = options;
 
   if (grouping.length === 0) {
@@ -648,7 +775,7 @@ export function buildGroupCountQuery(
     allowedColumns,
   );
 
-  const allParams = [...where.params, ...globalSearchClause.params];
+  let allParams = [...where.params, ...globalSearchClause.params];
   let whereSQL = "";
   if (where.sql && globalSearchClause.sql) {
     whereSQL = `WHERE ${where.sql.replace(/^WHERE /, "")} AND ${globalSearchClause.sql}`;
@@ -658,10 +785,19 @@ export function buildGroupCountQuery(
     whereSQL = `WHERE ${globalSearchClause.sql}`;
   }
 
+  // HAVING from aggregate filters
+  const having = buildHavingClause(
+    aggregateFilters,
+    allParams.length,
+    allowedColumns,
+  );
+  allParams = [...allParams, ...having.params];
+
   const parts = [
     `SELECT COUNT(*) AS "total" FROM (SELECT 1 FROM ${fromClause}`,
     whereSQL,
     `GROUP BY ${groupCols.join(", ")}`,
+    having.sql,
     `) AS "_groups"`,
   ].filter(Boolean);
 

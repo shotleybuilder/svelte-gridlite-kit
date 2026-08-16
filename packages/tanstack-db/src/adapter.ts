@@ -28,6 +28,8 @@ import type {
   GroupDetailDescriptor,
 } from "@shotleybuilder/svelte-gridlite-kit/adapter";
 import type {
+  AggregateFilter,
+  AggregateFilterOperator,
   ColumnMetadata,
   ViewPreset,
 } from "@shotleybuilder/svelte-gridlite-kit/types";
@@ -44,6 +46,48 @@ import { InMemoryStorage, type StorageProvider } from "./storage.js";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyCollection = Collection<any, any, any, any, any>;
+
+function compareAggregate(
+  actual: number,
+  op: AggregateFilterOperator,
+  expected: number,
+): boolean {
+  switch (op) {
+    case "greater_than":
+      return actual > expected;
+    case "less_than":
+      return actual < expected;
+    case "greater_or_equal":
+      return actual >= expected;
+    case "less_or_equal":
+      return actual <= expected;
+    case "equals":
+      return actual === expected;
+    case "not_equals":
+      return actual !== expected;
+  }
+}
+
+function resolveAggAlias(af: AggregateFilter): string {
+  if (af.function === "count" && (!af.column || af.column === "*")) {
+    return "_count";
+  }
+  return `${af.function}_${af.column}`;
+}
+
+function applyAggregateFilters(
+  rows: Record<string, unknown>[],
+  aggregateFilters?: AggregateFilter[],
+): Record<string, unknown>[] {
+  if (!aggregateFilters || aggregateFilters.length === 0) return rows;
+  return rows.filter((row) =>
+    aggregateFilters.every((af) => {
+      const alias = resolveAggAlias(af);
+      const val = Number(row[alias] ?? 0);
+      return compareAggregate(val, af.operator, af.value);
+    }),
+  );
+}
 
 export interface TanStackDBAdapterOptions {
   /** TanStack DB Collection to query against */
@@ -231,11 +275,35 @@ export class TanStackDBAdapter implements QueryAdapter {
       return chain;
     };
 
-    return createLiveCollectionHandle(queryFn, this.columns);
+    const handle = createLiveCollectionHandle(queryFn, this.columns);
+
+    // Wrap with aggregate filter if needed (HAVING equivalent)
+    if (query.aggregateFilters && query.aggregateFilters.length > 0) {
+      const aggFilters = query.aggregateFilters;
+      return {
+        subscribe(callback) {
+          return handle.subscribe((state) => {
+            callback({
+              ...state,
+              rows: state.loading
+                ? state.rows
+                : applyAggregateFilters(state.rows, aggFilters),
+            });
+          });
+        },
+        refresh: () => handle.refresh(),
+        update: (q) => handle.update(q),
+        destroy: () => handle.destroy(),
+      };
+    }
+
+    return handle;
   }
 
   async executeGroupCount(query: GroupCountDescriptor): Promise<number> {
     const searchColumns = this.getSearchColumns(query.searchColumns);
+    const hasAggFilters =
+      query.aggregateFilters && query.aggregateFilters.length > 0;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const queryFn = (q: any) => {
@@ -255,6 +323,10 @@ export class TanStackDBAdapter implements QueryAdapter {
         for (const g of query.grouping) {
           selected[g.column] = ctx.source[g.column];
         }
+        // Include _count when aggregate filters need it
+        if (hasAggFilters) {
+          selected._count = count(ctx.source[this.allowedColumns[0]]);
+        }
         return selected;
       });
 
@@ -263,7 +335,11 @@ export class TanStackDBAdapter implements QueryAdapter {
 
     const result = createLiveQueryCollection(queryFn);
     const rows = await result.toArrayWhenReady();
-    return rows.length;
+    const filtered = applyAggregateFilters(
+      rows as Record<string, unknown>[],
+      query.aggregateFilters,
+    );
+    return filtered.length;
   }
 
   createLiveGroupDetail(query: GroupDetailDescriptor): LiveQueryHandle {

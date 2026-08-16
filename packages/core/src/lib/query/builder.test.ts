@@ -8,6 +8,8 @@ import {
   buildGroupByClause,
   buildPaginationClause,
   buildGlobalSearchClause,
+  buildHavingClause,
+  buildGroupOrderByClause,
   buildGroupSummaryQuery,
   buildGroupCountQuery,
   buildGroupDetailQuery,
@@ -15,6 +17,7 @@ import {
   buildCountQuery,
 } from "./builder.js";
 import type {
+  AggregateFilter,
   FilterCondition,
   FilterNode,
   FilterGroup,
@@ -788,6 +791,96 @@ describe("buildGroupSummaryQuery", () => {
       }),
     ).toThrow("Column not found");
   });
+
+  it("with aggregate filter — HAVING clause", () => {
+    const result = buildGroupSummaryQuery({
+      table: "employees",
+      grouping: [{ column: "department" }],
+      aggregateFilters: [
+        {
+          id: "af1",
+          function: "count",
+          operator: "greater_than",
+          value: 1,
+        },
+      ],
+    });
+    expect(result.sql).toContain("HAVING COUNT(*) > $1");
+    expect(result.params).toEqual([1]);
+  });
+
+  it("with aggregate filter — HAVING after GROUP BY and before ORDER BY", () => {
+    const result = buildGroupSummaryQuery({
+      table: "employees",
+      grouping: [{ column: "department" }],
+      aggregateFilters: [
+        {
+          id: "af1",
+          function: "count",
+          operator: "greater_than",
+          value: 5,
+        },
+      ],
+    });
+    const groupByIdx = result.sql.indexOf("GROUP BY");
+    const havingIdx = result.sql.indexOf("HAVING");
+    const orderByIdx = result.sql.indexOf("ORDER BY");
+    expect(havingIdx).toBeGreaterThan(groupByIdx);
+    expect(orderByIdx).toBeGreaterThan(havingIdx);
+  });
+
+  it("with filters + aggregate filter — correct param offsets", () => {
+    const result = buildGroupSummaryQuery({
+      table: "employees",
+      grouping: [{ column: "department" }],
+      filters: [fc("active", "equals", true)],
+      aggregateFilters: [
+        {
+          id: "af1",
+          function: "count",
+          operator: "greater_than",
+          value: 3,
+        },
+      ],
+      allowedColumns: ["department", "active"],
+    });
+    expect(result.sql).toContain('"active" = $1');
+    expect(result.sql).toContain("HAVING COUNT(*) > $2");
+    expect(result.params).toEqual([true, 3]);
+  });
+
+  it("with _count sort — ORDER BY COUNT(*)", () => {
+    const result = buildGroupSummaryQuery({
+      table: "employees",
+      grouping: [{ column: "department" }],
+      sorting: [{ column: "_count", direction: "desc" }],
+    });
+    expect(result.sql).toContain("ORDER BY COUNT(*) DESC");
+  });
+
+  it("with group column + _count sort", () => {
+    const result = buildGroupSummaryQuery({
+      table: "employees",
+      grouping: [{ column: "department" }],
+      sorting: [
+        { column: "department", direction: "asc" },
+        { column: "_count", direction: "desc" },
+      ],
+    });
+    expect(result.sql).toContain(
+      'ORDER BY "department" ASC, COUNT(*) DESC',
+    );
+  });
+
+  it("non-group column filtered out of sort", () => {
+    const result = buildGroupSummaryQuery({
+      table: "employees",
+      grouping: [{ column: "department" }],
+      sorting: [{ column: "name", direction: "asc" }],
+    });
+    // "name" is not a group column and not _count — should be filtered out
+    expect(result.sql).not.toContain("ORDER BY");
+  });
 });
 
 // ─── buildGroupCountQuery ───────────────────────────────────────────────────
@@ -827,6 +920,206 @@ describe("buildGroupCountQuery", () => {
     expect(() =>
       buildGroupCountQuery({ table: "employees", grouping: [] }),
     ).toThrow("requires at least one group");
+  });
+
+  it("with aggregate filter — HAVING inside subquery", () => {
+    const result = buildGroupCountQuery({
+      table: "employees",
+      grouping: [{ column: "department" }],
+      aggregateFilters: [
+        {
+          id: "af1",
+          function: "count",
+          operator: "greater_than",
+          value: 1,
+        },
+      ],
+    });
+    expect(result.sql).toContain("HAVING COUNT(*) > $1");
+    // HAVING should be inside the subquery (before the closing parenthesis)
+    const havingIdx = result.sql.indexOf("HAVING");
+    const closingIdx = result.sql.indexOf(') AS "_groups"');
+    expect(havingIdx).toBeGreaterThan(-1);
+    expect(havingIdx).toBeLessThan(closingIdx);
+    expect(result.params).toEqual([1]);
+  });
+});
+
+// ─── buildHavingClause ────────────────────────────────────────────────────
+
+describe("buildHavingClause", () => {
+  it("returns empty for no filters", () => {
+    const result = buildHavingClause([]);
+    expect(result.sql).toBe("");
+    expect(result.params).toEqual([]);
+  });
+
+  it("single COUNT(*) filter", () => {
+    const result = buildHavingClause([
+      { id: "af1", function: "count", operator: "greater_than", value: 1 },
+    ]);
+    expect(result.sql).toBe("HAVING COUNT(*) > $1");
+    expect(result.params).toEqual([1]);
+  });
+
+  it("COUNT(*) with column='*'", () => {
+    const result = buildHavingClause([
+      {
+        id: "af1",
+        function: "count",
+        column: "*",
+        operator: "equals",
+        value: 5,
+      },
+    ]);
+    expect(result.sql).toBe("HAVING COUNT(*) = $1");
+    expect(result.params).toEqual([5]);
+  });
+
+  it("non-count aggregate with column", () => {
+    const result = buildHavingClause(
+      [
+        {
+          id: "af1",
+          function: "sum",
+          column: "salary",
+          operator: "greater_or_equal",
+          value: 100000,
+        },
+      ],
+      0,
+      ["salary", "name"],
+    );
+    expect(result.sql).toBe('HAVING SUM("salary") >= $1');
+    expect(result.params).toEqual([100000]);
+  });
+
+  it("multiple aggregate filters — AND logic", () => {
+    const result = buildHavingClause([
+      { id: "af1", function: "count", operator: "greater_than", value: 1 },
+      {
+        id: "af2",
+        function: "avg",
+        column: "age",
+        operator: "less_than",
+        value: 30,
+      },
+    ]);
+    expect(result.sql).toBe('HAVING COUNT(*) > $1 AND AVG("age") < $2');
+    expect(result.params).toEqual([1, 30]);
+  });
+
+  it("respects paramOffset", () => {
+    const result = buildHavingClause(
+      [
+        {
+          id: "af1",
+          function: "count",
+          operator: "greater_than",
+          value: 5,
+        },
+      ],
+      3,
+    );
+    expect(result.sql).toBe("HAVING COUNT(*) > $4");
+    expect(result.params).toEqual([5]);
+  });
+
+  it("all operators map correctly", () => {
+    const ops: [AggregateFilter["operator"], string][] = [
+      ["greater_than", ">"],
+      ["less_than", "<"],
+      ["greater_or_equal", ">="],
+      ["less_or_equal", "<="],
+      ["equals", "="],
+      ["not_equals", "!="],
+    ];
+    for (const [op, sql] of ops) {
+      const result = buildHavingClause([
+        { id: "af1", function: "count", operator: op, value: 1 },
+      ]);
+      expect(result.sql).toBe(`HAVING COUNT(*) ${sql} $1`);
+    }
+  });
+
+  it("validates column against allowlist", () => {
+    expect(() =>
+      buildHavingClause(
+        [
+          {
+            id: "af1",
+            function: "sum",
+            column: "secret",
+            operator: "greater_than",
+            value: 1,
+          },
+        ],
+        0,
+        ["salary", "name"],
+      ),
+    ).toThrow("Column not found");
+  });
+
+  it("throws for non-count aggregate without column", () => {
+    expect(() =>
+      buildHavingClause([
+        { id: "af1", function: "sum", operator: "greater_than", value: 1 },
+      ]),
+    ).toThrow("Non-count aggregate filters require a column");
+  });
+});
+
+// ─── buildGroupOrderByClause ──────────────────────────────────────────────
+
+describe("buildGroupOrderByClause", () => {
+  it("returns empty for no sorting", () => {
+    expect(buildGroupOrderByClause([], ["department"])).toBe("");
+  });
+
+  it("sort by _count DESC", () => {
+    const result = buildGroupOrderByClause(
+      [{ column: "_count", direction: "desc" }],
+      ["department"],
+    );
+    expect(result).toBe("ORDER BY COUNT(*) DESC");
+  });
+
+  it("sort by _count ASC", () => {
+    const result = buildGroupOrderByClause(
+      [{ column: "_count", direction: "asc" }],
+      ["department"],
+    );
+    expect(result).toBe("ORDER BY COUNT(*) ASC");
+  });
+
+  it("sort by group column + _count", () => {
+    const result = buildGroupOrderByClause(
+      [
+        { column: "department", direction: "asc" },
+        { column: "_count", direction: "desc" },
+      ],
+      ["department"],
+    );
+    expect(result).toBe('ORDER BY "department" ASC, COUNT(*) DESC');
+  });
+
+  it("filters out non-group non-virtual columns", () => {
+    const result = buildGroupOrderByClause(
+      [{ column: "name", direction: "asc" }],
+      ["department"],
+    );
+    expect(result).toBe("");
+  });
+
+  it("mixed valid and invalid columns", () => {
+    const result = buildGroupOrderByClause(
+      [
+        { column: "name", direction: "asc" },
+        { column: "_count", direction: "desc" },
+      ],
+      ["department"],
+    );
+    expect(result).toBe("ORDER BY COUNT(*) DESC");
   });
 });
 

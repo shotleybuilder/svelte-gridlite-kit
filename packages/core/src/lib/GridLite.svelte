@@ -18,6 +18,7 @@
 		FilterLogic,
 		SortConfig,
 		GroupConfig,
+		AggregateFilter,
 		ColumnMetadata,
 		ClassNameMap,
 		RowHeight,
@@ -76,6 +77,7 @@
 	let sorting: SortConfig[] = config?.defaultSorting ?? [];
 	let grouping: GroupConfig[] = config?.defaultGrouping ?? [];
 	let globalFilter = config?.defaultGlobalSearch ?? '';
+	let aggregateFilters: AggregateFilter[] = config?.defaultAggregateFilters ?? [];
 	let page = 0;
 	let pageSize = config?.pagination?.pageSize ?? 25;
 	let totalRows = 0;
@@ -395,8 +397,8 @@
 			// Top-level: group by first column only
 			const topGroupConfig = cleanAgg(groupingSnapshot[0]);
 
-			// Filter sorting to only the top-level group column (Postgres rejects ORDER BY on non-GROUP BY columns)
-			const topColumnNames = [topGroupConfig.column];
+			// Filter sorting to only the top-level group column + virtual _count column
+			const topColumnNames = [topGroupConfig.column, '_count'];
 			const groupSorting = sorting.filter((s) => topColumnNames.includes(s.column));
 
 			// Get total group count for pagination
@@ -405,7 +407,8 @@
 					grouping: [topGroupConfig],
 					filters,
 					filterLogic,
-					globalSearch: globalFilter || undefined
+					globalSearch: globalFilter || undefined,
+					aggregateFilters
 				});
 				totalRows = totalGroups;
 			}
@@ -422,7 +425,8 @@
 				globalSearch: globalFilter || undefined,
 				sorting: groupSorting,
 				page: usePagination ? page : undefined,
-				pageSize: usePagination ? pageSize : undefined
+				pageSize: usePagination ? pageSize : undefined,
+				aggregateFilters
 			});
 
 			groupSummaryHandle.subscribe((state) => {
@@ -528,8 +532,8 @@
 				// There are deeper group levels — live-subscribe sub-group summaries
 				const subGroupConfig = cleanAgg(groupingSnapshot[nextDepth]);
 
-				// Filter sorting to parent + current level columns only
-				const subColumnNames = groupingSnapshot.slice(0, nextDepth + 1).map((g) => g.column);
+				// Filter sorting to parent + current level columns + virtual _count
+				const subColumnNames = [...groupingSnapshot.slice(0, nextDepth + 1).map((g) => g.column), '_count'];
 				const groupSorting = sorting.filter((s) => subColumnNames.includes(s.column));
 
 				const handle = adapter.createLiveGroupSummary({
@@ -712,6 +716,13 @@
 		notifyStateChange();
 	}
 
+	export function setAggregateFilters(newFilters: AggregateFilter[]) {
+		aggregateFilters = newFilters;
+		page = 0;
+		rebuildQuery();
+		notifyStateChange();
+	}
+
 	/**
 	 * Apply multiple state changes atomically with a single rebuildQuery().
 	 * Prevents race conditions when switching views that change filters,
@@ -733,6 +744,7 @@
 			}
 		}
 		if (options.globalFilter !== undefined) globalFilter = options.globalFilter;
+		if (options.aggregateFilters !== undefined) aggregateFilters = options.aggregateFilters;
 		if (options.pageSize !== undefined) pageSize = options.pageSize;
 		page = options.page ?? 0;
 		if (options.columnVisibility !== undefined) columnVisibility = options.columnVisibility;
@@ -752,6 +764,7 @@
 				filterLogic,
 				sorting,
 				grouping,
+				aggregateFilters,
 				globalFilter,
 				pagination: { page, pageSize, totalRows, totalPages }
 			});

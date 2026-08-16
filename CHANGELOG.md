@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.9.0 — 2026-08-16
+
+### Added
+
+- **Aggregate filter operators (HAVING clause)** — New `AggregateFilter` type enables filtering grouped views by aggregate values. Supports `COUNT(*)`, `SUM`, `AVG`, `MIN`, `MAX` with all comparison operators. Translates to parameterized `HAVING` clauses in SQL. Set via `applyConfig({ aggregateFilters })`, `setAggregateFilters()`, `config.defaultAggregateFilters`, or view presets. TanStack DB adapter uses post-grouping JavaScript filter as HAVING equivalent. (#37)
+- **Sort grouped views by `_count`** — The virtual `_count` column can now be used in `sorting` when grouping is active, mapping to `ORDER BY COUNT(*)` in SQL. Non-group, non-virtual columns are automatically filtered out of grouped sort. (#37)
+- **`buildHavingClause()` and `buildGroupOrderByClause()`** — New query builder functions exported from the public API for custom adapter implementations.
+
+### Affected packages
+
+- `@shotleybuilder/svelte-gridlite-kit` 0.8.0 → 0.9.0
+
+### Migration
+
+- PGLite adapter: migration v3 adds `aggregate_filters` column to `_gridlite_views` (runs automatically on init)
+- Fully backward-compatible — existing views and configs work unchanged
+
 ## 0.8.0 — 2026-08-16
 
 ### Added

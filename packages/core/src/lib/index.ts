@@ -45,6 +45,8 @@ export type {
   GroupConfig,
   AggregationConfig,
   AggregateFunction,
+  AggregateFilter,
+  AggregateFilterOperator,
   ViewPreset,
   ClassNameMap,
   RowHeight,
@@ -66,16 +68,20 @@ export {
   buildGroupByClause,
   buildPaginationClause,
   buildGlobalSearchClause,
+  buildHavingClause,
+  buildGroupOrderByClause,
   buildGroupSummaryQuery,
   buildGroupCountQuery,
   buildGroupDetailQuery,
   buildQuery,
   buildCountQuery,
+  GROUP_VIRTUAL_COLUMNS,
 } from "./query/builder.js";
 export type {
   QueryOptions,
   GroupSummaryOptions,
   GroupDetailOptions,
+  GroupVirtualColumn,
 } from "./query/builder.js";
 
 // Schema type mapping (pure functions — no db dependency)
