@@ -1,3 +1,9 @@
+---
+session: "Build Plan II — Session 4: Column Picker — Visibility Groups & Search"
+status: closed
+opened: 2026-03-12
+closed: 2026-03-12
+---
 # Title: Build Plan II — Session 4: Column Picker — Visibility Groups & Search
 
 **Started**: 2026-03-12

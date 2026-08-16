@@ -1,3 +1,9 @@
+---
+session: Integration Testing, Demo App & Package Prep
+status: closed
+opened: 2026-03-12
+closed: 2026-03-12
+---
 # Session 10: Integration Testing, Demo App & Package Prep
 
 **Started**: 2026-03-12

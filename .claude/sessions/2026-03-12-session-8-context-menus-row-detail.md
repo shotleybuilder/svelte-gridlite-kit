@@ -1,3 +1,9 @@
+---
+session: Context Menus, Column Menu & Row Detail
+status: closed
+opened: 2026-03-12
+closed: 2026-03-12
+---
 # Session 8: Context Menus, Column Menu & Row Detail
 
 **Started**: 2026-03-12

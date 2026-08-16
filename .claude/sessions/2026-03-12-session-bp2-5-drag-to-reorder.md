@@ -1,3 +1,9 @@
+---
+session: "Build Plan II — Session 5: Column Picker — Drag-to-Reorder & Multi-Select"
+status: closed
+opened: 2026-03-12
+closed: 2026-03-12
+---
 # Title: Build Plan II — Session 5: Column Picker — Drag-to-Reorder & Multi-Select
 
 **Started**: 2026-03-12

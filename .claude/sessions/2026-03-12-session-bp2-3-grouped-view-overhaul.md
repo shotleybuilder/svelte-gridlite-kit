@@ -1,3 +1,9 @@
+---
+session: "Build Plan II — Session 3: Grouped View Overhaul"
+status: closed
+opened: 2026-03-12
+closed: 2026-03-12
+---
 # Title: Build Plan II — Session 3: Grouped View Overhaul
 
 **Started**: 2026-03-12

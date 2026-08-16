@@ -1,3 +1,9 @@
+---
+session: Types & Query Builder Foundation
+status: closed
+opened: 2026-03-12
+closed: 2026-03-12
+---
 # Session 1: Types & Query Builder Foundation
 
 **Started**: 2026-03-12

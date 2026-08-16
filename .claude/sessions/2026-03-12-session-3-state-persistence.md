@@ -1,3 +1,9 @@
+---
+session: State Persistence (Views & Migrations)
+status: closed
+opened: 2026-03-12
+closed: 2026-03-12
+---
 # Session 3: State Persistence (Views & Migrations)
 
 **Started**: 2026-03-12

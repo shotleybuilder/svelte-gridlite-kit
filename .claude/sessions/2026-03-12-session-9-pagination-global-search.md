@@ -1,3 +1,9 @@
+---
+session: Pagination & Global Search
+status: closed
+opened: 2026-03-12
+closed: 2026-03-12
+---
 # Session 9: Pagination & Global Search
 
 **Started**: 2026-03-12

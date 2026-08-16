@@ -1,3 +1,9 @@
+---
+session: SortBar & GroupBar Components
+status: closed
+opened: 2026-03-12
+closed: 2026-03-12
+---
 # Session 7: SortBar & GroupBar Components
 
 **Started**: 2026-03-12

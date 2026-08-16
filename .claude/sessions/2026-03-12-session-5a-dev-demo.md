@@ -1,3 +1,9 @@
+---
+session: "Session 5a: Dev Demo App"
+status: closed
+opened: 2026-03-12
+closed: 2026-03-12
+---
 # Session 5a: Dev Demo App
 
 **Started**: 2026-03-12

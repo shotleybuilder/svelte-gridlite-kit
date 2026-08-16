@@ -1,3 +1,9 @@
+---
+session: Utilities (Fuzzy Search & Formatters)
+status: closed
+opened: 2026-03-12
+closed: 2026-03-12
+---
 # Session 4: Utilities (Fuzzy Search & Formatters)
 
 **Started**: 2026-03-12

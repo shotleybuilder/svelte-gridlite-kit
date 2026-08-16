@@ -1,3 +1,9 @@
+---
+session: FilterBar & FilterCondition Components
+status: closed
+opened: 2026-03-12
+closed: 2026-03-12
+---
 # Session 6: FilterBar & FilterCondition Components
 
 **Started**: 2026-03-12

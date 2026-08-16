@@ -1,3 +1,9 @@
+---
+session: Schema Introspection & PGLite Live Query Wrapper
+status: closed
+opened: 2026-03-12
+closed: 2026-03-12
+---
 # Session 2: Schema Introspection & PGLite Live Query Wrapper
 
 **Started**: 2026-03-12
