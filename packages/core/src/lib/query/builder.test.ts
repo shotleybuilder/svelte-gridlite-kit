@@ -99,26 +99,35 @@ describe("buildWhereClause — string operators", () => {
 
   it("contains (ILIKE)", () => {
     const result = buildWhereClause([fc("name", "contains", "ali")]);
-    expect(result.sql).toBe(`WHERE "name" ILIKE '%' || $1 || '%'`);
+    expect(result.sql).toBe(`WHERE "name" ILIKE '%%' || $1 || '%%'`);
     expect(result.params).toEqual(["ali"]);
   });
 
   it("not_contains", () => {
     const result = buildWhereClause([fc("name", "not_contains", "test")]);
-    expect(result.sql).toBe(`WHERE "name" NOT ILIKE '%' || $1 || '%'`);
+    expect(result.sql).toBe(`WHERE "name" NOT ILIKE '%%' || $1 || '%%'`);
     expect(result.params).toEqual(["test"]);
   });
 
   it("starts_with", () => {
     const result = buildWhereClause([fc("name", "starts_with", "A")]);
-    expect(result.sql).toBe(`WHERE "name" ILIKE $1 || '%'`);
+    expect(result.sql).toBe(`WHERE "name" ILIKE $1 || '%%'`);
     expect(result.params).toEqual(["A"]);
   });
 
   it("ends_with", () => {
     const result = buildWhereClause([fc("name", "ends_with", "son")]);
-    expect(result.sql).toBe(`WHERE "name" ILIKE '%' || $1`);
+    expect(result.sql).toBe(`WHERE "name" ILIKE '%%' || $1`);
     expect(result.params).toEqual(["son"]);
+  });
+
+  it("ILIKE patterns use %% to survive PGLite format()", () => {
+    // PGLite's live.query() wraps SQL in format(), which treats bare % as
+    // a format specifier. Using %% produces a literal % in the output.
+    for (const op of ["contains", "not_contains", "starts_with", "ends_with"] as const) {
+      const result = buildWhereClause([fc("name", op, "x")]);
+      expect(result.sql).not.toMatch(/'%'(?!%)/); // no bare '%' — must be '%%'
+    }
   });
 
   it("is_empty (no params)", () => {
@@ -320,7 +329,7 @@ describe("buildWhereClause — compound and edge cases", () => {
     ]);
     // is_not_empty uses no params, so next starts at $1
     expect(result.sql).toBe(
-      `WHERE ("email" IS NOT NULL AND "email"::text != '') AND "name" ILIKE '%' || $1 || '%' AND "age" > $2`,
+      `WHERE ("email" IS NOT NULL AND "email"::text != '') AND "name" ILIKE '%%' || $1 || '%%' AND "age" > $2`,
     );
     expect(result.params).toEqual(["test", 18]);
   });
@@ -606,7 +615,7 @@ describe("buildGlobalSearchClause", () => {
 
   it("searches single column", () => {
     const result = buildGlobalSearchClause("alice", ["name"]);
-    expect(result.sql).toBe("(\"name\"::text ILIKE '%' || $1 || '%')");
+    expect(result.sql).toBe("(\"name\"::text ILIKE '%%' || $1 || '%%')");
     expect(result.params).toEqual(["alice"]);
   });
 
@@ -1192,7 +1201,7 @@ describe("buildWhereClauseFromNodes", () => {
       "and",
     );
     expect(result.sql).toBe(
-      `WHERE "active" = $1 AND (("email" IS NULL OR "email"::text = '') OR "name" ILIKE '%' || $2 || '%')`,
+      `WHERE "active" = $1 AND (("email" IS NULL OR "email"::text = '') OR "name" ILIKE '%%' || $2 || '%%')`,
     );
     expect(result.params).toEqual([true, "test"]);
   });

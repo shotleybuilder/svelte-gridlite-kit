@@ -195,25 +195,25 @@ function buildConditionSQL(
 
     case "contains":
       return {
-        sql: `${quotedCol} ILIKE '%' || ${p()} || '%'`,
+        sql: `${quotedCol} ILIKE '%%' || ${p()} || '%%'`,
         params: [condition.value],
       };
 
     case "not_contains":
       return {
-        sql: `${quotedCol} NOT ILIKE '%' || ${p()} || '%'`,
+        sql: `${quotedCol} NOT ILIKE '%%' || ${p()} || '%%'`,
         params: [condition.value],
       };
 
     case "starts_with":
       return {
-        sql: `${quotedCol} ILIKE ${p()} || '%'`,
+        sql: `${quotedCol} ILIKE ${p()} || '%%'`,
         params: [condition.value],
       };
 
     case "ends_with":
       return {
-        sql: `${quotedCol} ILIKE '%' || ${p()}`,
+        sql: `${quotedCol} ILIKE '%%' || ${p()}`,
         params: [condition.value],
       };
 
@@ -456,7 +456,7 @@ export function buildPaginationClause(page: number, pageSize: number): string {
 /**
  * Build a WHERE-compatible clause for global search across text columns.
  *
- * Generates `(col1::text ILIKE '%' || $N || '%' OR col2::text ILIKE ...)`
+ * Generates `(col1::text ILIKE '%%' || $N || '%%' OR col2::text ILIKE ...)`
  * using a single parameter for the search term. The `::text` cast allows
  * searching non-text columns (numbers, dates, booleans) as strings.
  *
@@ -480,7 +480,7 @@ export function buildGlobalSearchClause(
 
   const parts = textColumns.map((col) => {
     const quoted = quoteIdentifier(col, allowedColumns);
-    return `${quoted}::text ILIKE '%' || ${p} || '%'`;
+    return `${quoted}::text ILIKE '%%' || ${p} || '%%'`;
   });
 
   return {

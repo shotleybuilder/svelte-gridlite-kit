@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.2 — 2026-08-16
+
+### Fixed
+
+- **ILIKE `%` breaks PGLite `live.query()` format()** — The `contains`, `not_contains`, `starts_with`, and `ends_with` filter operators emitted literal `'%'` in ILIKE patterns. PGLite's `live.query()` wraps SQL in PostgreSQL `format()`, which treats `%` as a format specifier, causing `unrecognized format() type specifier "'"` errors. All text search filters and global search were broken with PGLite live queries. Fixed by escaping `%` as `%%` in all ILIKE patterns. (#38)
+
+### Affected packages
+
+- `@shotleybuilder/svelte-gridlite-kit` 0.7.1 → 0.7.2
+
 ## 0.7.3 — 2026-08-14 (adapter packages only)
 
 ### Fixed
