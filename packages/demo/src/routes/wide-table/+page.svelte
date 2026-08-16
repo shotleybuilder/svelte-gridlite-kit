@@ -7,10 +7,10 @@
 	import '@shotleybuilder/svelte-gridlite-kit/styles';
 	import { createPGLiteAdapter, type PGliteWithLive } from '@shotleybuilder/gridlite-adapter-pglite';
 
-	let db: PGliteWithLive | null = null;
-	let adapter: QueryAdapter | null = null;
-	let ready = false;
-	let initError: string | null = null;
+	let db: PGliteWithLive | null = $state(null);
+	let adapter: QueryAdapter | null = $state(null);
+	let ready = $state(false);
+	let initError: string | null = $state(null);
 
 	onMount(async () => {
 		try {

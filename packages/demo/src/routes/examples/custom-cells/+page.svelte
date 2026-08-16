@@ -14,9 +14,9 @@
 	import '@shotleybuilder/svelte-gridlite-kit/styles';
 	import { createPGLiteAdapter, type PGliteWithLive } from '@shotleybuilder/gridlite-adapter-pglite';
 
-	let db: PGliteWithLive | null = null;
-	let adapter: QueryAdapter | null = null;
-	let ready = false;
+	let db: PGliteWithLive | null = $state(null);
+	let adapter: QueryAdapter | null = $state(null);
+	let ready = $state(false);
 
 	onMount(async () => {
 		db = new PGlite({ extensions: { live } }) as PGliteWithLive;
@@ -86,8 +86,8 @@
 				columnVisibility: true
 			}}
 		>
-			<!-- Rich cell rendering via slot -->
-			<svelte:fragment slot="cell" let:value let:row let:column>
+			<!-- Rich cell rendering via snippet -->
+			{#snippet cell({ value, row, column })}
 				{#if column === 'price'}
 					<span class="price">${Number(value).toFixed(2)}</span>
 				{:else if column === 'stock'}
@@ -114,18 +114,18 @@
 					<span class="category-tag category-{String(value).toLowerCase()}">{value}</span>
 				{:else if column === 'name'}
 					<strong>{value}</strong>
-					<button class="edit-btn" on:click|stopPropagation={() => handleEdit(row)}>Edit</button>
+					<button class="edit-btn" onclick={(e: MouseEvent) => { e.stopPropagation(); handleEdit(row); }}>Edit</button>
 				{:else}
 					{value ?? ''}
 				{/if}
-			</svelte:fragment>
+			{/snippet}
 
 			<!-- Custom toolbar buttons -->
-			<svelte:fragment slot="toolbar-end">
-				<button class="toolbar-btn" on:click={() => alert('Export clicked')}>
+			{#snippet toolbar-end()}
+				<button class="toolbar-btn" onclick={() => alert('Export clicked')}>
 					Export CSV
 				</button>
-			</svelte:fragment>
+			{/snippet}
 		</GridLite>
 	{:else}
 		<p>Loading...</p>

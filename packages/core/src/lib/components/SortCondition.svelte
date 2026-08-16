@@ -8,12 +8,21 @@
 
 	import type { SortConfig, ColumnMetadata, ColumnConfig } from '../types.js';
 
-	export let sort: SortConfig;
-	export let columns: ColumnMetadata[];
-	export let columnConfigs: ColumnConfig[] = [];
-	export let existingSorts: SortConfig[];
-	export let onUpdate: (column: string, direction: 'asc' | 'desc') => void;
-	export let onRemove: () => void;
+	let {
+		sort,
+		columns,
+		columnConfigs = [],
+		existingSorts,
+		onUpdate,
+		onRemove
+	}: {
+		sort: SortConfig;
+		columns: ColumnMetadata[];
+		columnConfigs?: ColumnConfig[];
+		existingSorts: SortConfig[];
+		onUpdate: (column: string, direction: 'asc' | 'desc') => void;
+		onRemove: () => void;
+	} = $props();
 
 	const directionOptions = [
 		{ value: 'asc', label: 'A → Z', icon: '↑' },
@@ -36,18 +45,18 @@
 	}
 
 	// Available columns: include current column or columns not already sorted
-	$: availableColumns = columns.filter((col) => {
+	let availableColumns = $derived(columns.filter((col) => {
 		return col.name === sort.column || !existingSorts.some((s) => s.column === col.name);
-	});
+	}));
 
-	$: columnOptions = availableColumns.map((col) => ({
+	let columnOptions = $derived(availableColumns.map((col) => ({
 		name: col.name,
 		label: getColumnLabel(col)
-	}));
+	})));
 </script>
 
 <div class="sort-condition">
-	<select class="field-select" value={sort.column} on:change={handleColumnChange}>
+	<select class="field-select" value={sort.column} onchange={handleColumnChange}>
 		<option value="">Select field...</option>
 		{#each columnOptions as option}
 			<option value={option.name}>
@@ -59,7 +68,7 @@
 	<select
 		class="direction-select"
 		value={sort.direction}
-		on:change={handleDirectionChange}
+		onchange={handleDirectionChange}
 		disabled={!sort.column}
 	>
 		{#each directionOptions as option}
@@ -69,7 +78,7 @@
 		{/each}
 	</select>
 
-	<button class="remove-btn" on:click={onRemove} title="Remove sort" type="button">
+	<button class="remove-btn" onclick={onRemove} title="Remove sort" type="button">
 		<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 			<path
 				stroke-linecap="round"

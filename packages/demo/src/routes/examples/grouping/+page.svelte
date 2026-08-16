@@ -13,10 +13,10 @@
 	import '@shotleybuilder/svelte-gridlite-kit/styles';
 	import { createPGLiteAdapter, type PGliteWithLive } from '@shotleybuilder/gridlite-adapter-pglite';
 
-	let db: PGliteWithLive | null = null;
-	let adapter: QueryAdapter | null = null;
-	let ready = false;
-	let mutationLog: string[] = [];
+	let db: PGliteWithLive | null = $state(null);
+	let adapter: QueryAdapter | null = $state(null);
+	let ready = $state(false);
+	let mutationLog: string[] = $state([]);
 
 	const departments = ['Engineering', 'Marketing', 'Sales', 'Finance', 'HR', 'Operations'];
 	const titles = ['Engineer', 'Senior Engineer', 'Manager', 'Analyst', 'Director', 'Coordinator'];
@@ -108,10 +108,10 @@
 
 	<div class="mutation-controls">
 		<span class="label">Mutate data:</span>
-		<button on:click={addEmployee}>Add Employee</button>
-		<button on:click={giveRaises}>Give Raises</button>
-		<button on:click={moveDepartment}>Move Department</button>
-		<button on:click={removeEmployee}>Remove Employee</button>
+		<button onclick={addEmployee}>Add Employee</button>
+		<button onclick={giveRaises}>Give Raises</button>
+		<button onclick={moveDepartment}>Move Department</button>
+		<button onclick={removeEmployee}>Remove Employee</button>
 	</div>
 
 	{#if mutationLog.length > 0}

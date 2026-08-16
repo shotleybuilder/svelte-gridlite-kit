@@ -8,6 +8,7 @@
 	 */
 
 	import { onMount, onDestroy } from 'svelte';
+	import type { Snippet } from 'svelte';
 	import type {
 		GridConfig,
 		GridFeatures,
@@ -37,56 +38,59 @@
 
 	// ─── Props ────────────────────────────────────────────────────────────────
 
-	/** Query adapter (e.g. createPGLiteAdapter({ db, table })) */
-	export let adapter: QueryAdapter;
-
-	/** Grid configuration */
-	export let config: GridConfig | undefined = undefined;
-
-	/** Feature flags */
-	export let features: GridFeatures = {};
-
-	/** Custom CSS class names */
-	export let classNames: Partial<ClassNameMap> = {};
-
-	/** Row height variant */
-	export let rowHeight: RowHeight = 'medium';
-
-	/** Column spacing variant */
-	export let columnSpacing: ColumnSpacing = 'normal';
-
-	/** Toolbar layout preset */
-	export let toolbarLayout: ToolbarLayout = 'airtable';
-
-	/** Row click callback */
-	export let onRowClick: ((row: Record<string, unknown>) => void) | undefined = undefined;
-
-	/** State change callback */
-	export let onStateChange: ((state: GridState) => void) | undefined = undefined;
+	let {
+		adapter,
+		config = undefined,
+		features = {},
+		classNames = {},
+		rowHeight = 'medium',
+		columnSpacing = 'normal',
+		toolbarLayout = 'airtable',
+		onRowClick = undefined,
+		onStateChange = undefined,
+		'toolbar-start': toolbarStart,
+		'toolbar-end': toolbarEnd,
+		cell,
+		'row-detail': rowDetail
+	}: {
+		adapter: QueryAdapter;
+		config?: GridConfig | undefined;
+		features?: GridFeatures;
+		classNames?: Partial<ClassNameMap>;
+		rowHeight?: RowHeight;
+		columnSpacing?: ColumnSpacing;
+		toolbarLayout?: ToolbarLayout;
+		onRowClick?: ((row: Record<string, unknown>) => void) | undefined;
+		onStateChange?: ((state: GridState) => void) | undefined;
+		'toolbar-start'?: Snippet;
+		'toolbar-end'?: Snippet;
+		cell?: Snippet<[{ value: unknown; row: Record<string, unknown>; column: string }]>;
+		'row-detail'?: Snippet<[{ row: Record<string, unknown> | null; close: () => void }]>;
+	} = $props();
 
 	// ─── Internal State ───────────────────────────────────────────────────────
 
-	let columns: ColumnMetadata[] = [];
-	let allowedColumns: string[] = [];
-	let initialized = false;
-	let error: string | null = null;
+	let columns: ColumnMetadata[] = $state([]);
+	let allowedColumns: string[] = $state([]);
+	let initialized = $state(false);
+	let error: string | null = $state(null);
 
 	// Grid state
-	let filters: FilterNode[] = config?.defaultFilters ?? [];
-	let filterLogic: FilterLogic = config?.filterLogic ?? 'and';
-	let sorting: SortConfig[] = config?.defaultSorting ?? [];
-	let grouping: GroupConfig[] = config?.defaultGrouping ?? [];
-	let globalFilter = config?.defaultGlobalSearch ?? '';
-	let aggregateFilters: AggregateFilter[] = config?.defaultAggregateFilters ?? [];
-	let page = 0;
-	let pageSize = config?.pagination?.pageSize ?? 25;
-	let totalRows = 0;
+	let filters: FilterNode[] = $state(config?.defaultFilters ?? []);
+	let filterLogic: FilterLogic = $state(config?.filterLogic ?? 'and');
+	let sorting: SortConfig[] = $state(config?.defaultSorting ?? []);
+	let grouping: GroupConfig[] = $state(config?.defaultGrouping ?? []);
+	let globalFilter = $state(config?.defaultGlobalSearch ?? '');
+	let aggregateFilters: AggregateFilter[] = $state(config?.defaultAggregateFilters ?? []);
+	let page = $state(0);
+	let pageSize = $state(config?.pagination?.pageSize ?? 25);
+	let totalRows = $state(0);
 	let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 
 	// Toolbar UI state
-	let filterExpanded = false;
-	let sortExpanded = false;
-	let groupExpanded = false;
+	let filterExpanded = $state(false);
+	let sortExpanded = $state(false);
+	let groupExpanded = $state(false);
 
 	// Context menu state
 	let contextMenu: {
@@ -96,41 +100,41 @@
 		columnName: string;
 		columnLabel: string;
 		isNumeric: boolean;
-	} | null = null;
+	} | null = $state(null);
 
 	// Column menu state
-	let columnMenuOpen: string | null = null;
+	let columnMenuOpen: string | null = $state(null);
 
 	// View controls UI state
-	let showRowHeightMenu = false;
-	let showColumnSpacingMenu = false;
-	let showColumnPicker = false;
+	let showRowHeightMenu = $state(false);
+	let showColumnSpacingMenu = $state(false);
+	let showColumnPicker = $state(false);
 
 	const rowHeightOptions: RowHeight[] = ['short', 'medium', 'tall', 'extra_tall'];
 	const columnSpacingOptions: ColumnSpacing[] = ['narrow', 'normal', 'wide'];
 
 	// Column visibility state
-	let columnVisibility: Record<string, boolean> = {};
+	let columnVisibility: Record<string, boolean> = $state({});
 
 	// Column order state
-	let columnOrder: string[] = config?.defaultColumnOrder ?? [];
-	let draggedColumnId: string | null = null;
-	let dragOverColumnId: string | null = null;
+	let columnOrder: string[] = $state(config?.defaultColumnOrder ?? []);
+	let draggedColumnId: string | null = $state(null);
+	let dragOverColumnId: string | null = $state(null);
 
 	// Column sizing state
-	let columnSizing: Record<string, number> = config?.defaultColumnSizing ?? {};
-	let resizingColumn: string | null = null;
-	let resizeStartX = 0;
-	let resizeStartWidth = 0;
+	let columnSizing: Record<string, number> = $state(config?.defaultColumnSizing ?? {});
+	let resizingColumn: string | null = $state(null);
+	let resizeStartX = $state(0);
+	let resizeStartWidth = $state(0);
 
 	const COL_MIN_WIDTH = 62;
 	const COL_MAX_WIDTH = 1000;
 	const COL_DEFAULT_WIDTH = 180;
 
 	// Custom labels state (user-editable, persisted)
-	let customLabels: Record<string, string> = {};
-	let editingColumnLabel: string | null = null;
-	let editingLabelValue = '';
+	let customLabels: Record<string, string> = $state({});
+	let editingColumnLabel: string | null = $state(null);
+	let editingLabelValue = $state('');
 
 	// Grouped view state
 	interface GroupRow {
@@ -147,42 +151,42 @@
 		/** Detail rows (only at the deepest group level) */
 		children: Record<string, unknown>[] | null;
 	}
-	let groupData: GroupRow[] = [];
-	let expandedGroups: Set<string> = new Set();
-	let totalGroups = 0;
-	let groupLoading: Set<string> = new Set();
+	let groupData: GroupRow[] = $state([]);
+	let expandedGroups: Set<string> = $state(new Set());
+	let totalGroups = $state(0);
+	let groupLoading: Set<string> = $state(new Set());
 
 	// Live group subscription handles
-	let groupSummaryHandle: LiveQueryHandle | null = null;
-	let groupHandles: Map<string, LiveQueryHandle> = new Map();
+	let groupSummaryHandle: LiveQueryHandle | null = $state(null);
+	let groupHandles: Map<string, LiveQueryHandle> = $state(new Map());
 
 	// Row detail state
-	let rowDetailOpen = false;
-	let rowDetailIndex = -1;
+	let rowDetailOpen = $state(false);
+	let rowDetailIndex = $state(-1);
 
 	// Live query handle
-	let store: LiveQueryHandle | null = null;
-	let storeState: LiveQueryState = {
+	let store: LiveQueryHandle | null = $state(null);
+	let storeState: LiveQueryState = $state({
 		rows: [],
 		fields: [],
 		loading: true,
 		error: null
-	};
+	});
 
 	// ─── Computed ─────────────────────────────────────────────────────────────
 
-	$: totalPages = pageSize > 0 ? Math.ceil(totalRows / pageSize) : 0;
+	let totalPages = $derived(pageSize > 0 ? Math.ceil(totalRows / pageSize) : 0);
 
-	$: containerClass = [
+	let containerClass = $derived([
 		'gridlite-container',
 		`gridlite-row-${rowHeight}`,
 		`gridlite-spacing-${columnSpacing}`,
 		`gridlite-layout-${toolbarLayout}`,
 		classNames.container ?? ''
-	].filter(Boolean).join(' ');
+	].filter(Boolean).join(' '));
 
 	// Visible columns (respecting config + columnVisibility toggle state)
-	$: visibleColumns = columns.filter((col) => {
+	let visibleColumns = $derived(columns.filter((col) => {
 		// If columnVisibility has an explicit entry, use it
 		if (col.name in columnVisibility) {
 			return columnVisibility[col.name];
@@ -192,10 +196,10 @@
 			return config.defaultVisibleColumns.includes(col.name);
 		}
 		return true;
-	});
+	}));
 
 	// Ordered columns (columnOrder state takes priority, then config default, then schema order)
-	$: orderedColumns = (() => {
+	let orderedColumns = $derived.by(() => {
 		const order = columnOrder.length > 0 ? columnOrder : (config?.defaultColumnOrder ?? []);
 		if (order.length > 0) {
 			return [...visibleColumns].sort((a, b) => {
@@ -208,24 +212,24 @@
 			});
 		}
 		return visibleColumns;
-	})();
+	});
 
 	// Valid groups (only entries where the user has selected a column)
-	$: validGrouping = grouping.filter((g) => g.column !== '');
+	let validGrouping = $derived(grouping.filter((g) => g.column !== ''));
 
 	// Whether grouping is active
-	$: isGrouped = validGrouping.length > 0;
+	let isGrouped = $derived(validGrouping.length > 0);
 
 	// Number of hidden columns (for badge display)
-	$: hiddenColumnCount = columns.length - visibleColumns.length;
+	let hiddenColumnCount = $derived(columns.length - visibleColumns.length);
 
 	// Columns to show in headers and child rows when grouping — excludes grouped columns
-	$: nonGroupedColumns = isGrouped
+	let nonGroupedColumns = $derived(isGrouped
 		? orderedColumns.filter((col) => !validGrouping.some((g) => g.column === col.name))
-		: orderedColumns;
+		: orderedColumns);
 
 	// Merge custom labels into columnConfigs for sub-components
-	$: mergedColumnConfigs = (() => {
+	let mergedColumnConfigs = $derived.by(() => {
 		const base = config?.columns ?? [];
 		if (Object.keys(customLabels).length === 0) return base;
 		// Build a map of existing configs
@@ -240,7 +244,7 @@
 			}
 		}
 		return [...configMap.values()];
-	})();
+	});
 
 	/** Build a composite key for a group row (using values up to its depth) */
 	function groupKey(group: GroupRow): string {
@@ -1191,7 +1195,7 @@
 		}
 	}
 
-	$: rowDetailRow = rowDetailIndex >= 0 ? storeState.rows[rowDetailIndex] ?? null : null;
+	let rowDetailRow = $derived(rowDetailIndex >= 0 ? storeState.rows[rowDetailIndex] ?? null : null);
 
 	// Flatten the group tree into a renderable list of items
 	interface FlatGroupItem {
@@ -1224,7 +1228,7 @@
 		return items;
 	}
 
-	$: flatGroupItems = isGrouped ? flattenGroupTree(groupData) : [];
+	let flatGroupItems = $derived(isGrouped ? flattenGroupTree(groupData) : []);
 
 	// ─── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -1250,7 +1254,7 @@
 	});
 </script>
 
-<svelte:window on:click={closeViewMenus} />
+<svelte:window onclick={closeViewMenus} />
 
 <div class={containerClass}>
 	{#if error}
@@ -1263,7 +1267,7 @@
 		{#if toolbarLayout !== 'aggrid'}
 			<div class="gridlite-toolbar">
 				<!-- Custom toolbar content (start) -->
-				<slot name="toolbar-start" />
+				{@render toolbarStart?.()}
 
 				<!-- Column Visibility (data control) -->
 				{#if features.columnVisibility}
@@ -1271,7 +1275,7 @@
 						<button
 							class="gridlite-view-control-btn"
 							class:active={showColumnPicker}
-							on:click|stopPropagation={() => {
+							onclick={(e) => { e.stopPropagation();
 								showColumnPicker = !showColumnPicker;
 								showRowHeightMenu = false;
 								showColumnSpacingMenu = false;
@@ -1352,7 +1356,7 @@
 						<button
 							class="gridlite-view-control-btn"
 							class:active={showRowHeightMenu}
-							on:click|stopPropagation={() => {
+							onclick={(e) => { e.stopPropagation();
 								showRowHeightMenu = !showRowHeightMenu;
 								showColumnSpacingMenu = false;
 								showColumnPicker = false;
@@ -1371,7 +1375,7 @@
 									<button
 										class="gridlite-view-dropdown-item"
 										class:selected={rowHeight === rh}
-										on:click={() => {
+										onclick={() => {
 											rowHeight = rh;
 											showRowHeightMenu = false;
 										}}
@@ -1387,7 +1391,7 @@
 						<button
 							class="gridlite-view-control-btn"
 							class:active={showColumnSpacingMenu}
-							on:click|stopPropagation={() => {
+							onclick={(e) => { e.stopPropagation();
 								showColumnSpacingMenu = !showColumnSpacingMenu;
 								showRowHeightMenu = false;
 								showColumnPicker = false;
@@ -1406,7 +1410,7 @@
 									<button
 										class="gridlite-view-dropdown-item"
 										class:selected={columnSpacing === sp}
-										on:click={() => {
+										onclick={() => {
 											columnSpacing = sp;
 											showColumnSpacingMenu = false;
 										}}
@@ -1432,10 +1436,10 @@
 								type="text"
 								placeholder="Search all columns..."
 								value={globalFilter}
-								on:input={handleGlobalSearchInput}
+								oninput={handleGlobalSearchInput}
 							/>
 							{#if globalFilter}
-								<button class="gridlite-search-clear" on:click={clearGlobalSearch} type="button" title="Clear search">
+								<button class="gridlite-search-clear" onclick={clearGlobalSearch} type="button" title="Clear search">
 									<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 									</svg>
@@ -1446,7 +1450,7 @@
 				{/if}
 
 				<!-- Custom toolbar content (end) -->
-				<slot name="toolbar-end" />
+				{@render toolbarEnd?.()}
 			</div>
 		{/if}
 
@@ -1455,7 +1459,7 @@
 			<!-- TODO(#1): aggrid layout is experimental — not production-ready. Needs debugging. -->
 			<div class="gridlite-toolbar gridlite-toolbar-aggrid-top">
 				<!-- Custom toolbar content (start) -->
-				<slot name="toolbar-start" />
+				{@render toolbarStart?.()}
 
 				{#if features.globalSearch}
 					<div class="gridlite-toolbar-search">
@@ -1468,10 +1472,10 @@
 								type="text"
 								placeholder="Search all columns..."
 								value={globalFilter}
-								on:input={handleGlobalSearchInput}
+								oninput={handleGlobalSearchInput}
 							/>
 							{#if globalFilter}
-								<button class="gridlite-search-clear" on:click={clearGlobalSearch} type="button" title="Clear search">
+								<button class="gridlite-search-clear" onclick={clearGlobalSearch} type="button" title="Clear search">
 									<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 									</svg>
@@ -1509,7 +1513,7 @@
 						<button
 							class="gridlite-view-control-btn"
 							class:active={showRowHeightMenu}
-							on:click|stopPropagation={() => {
+							onclick={(e) => { e.stopPropagation();
 								showRowHeightMenu = !showRowHeightMenu;
 								showColumnSpacingMenu = false;
 							}}
@@ -1527,7 +1531,7 @@
 									<button
 										class="gridlite-view-dropdown-item"
 										class:selected={rowHeight === rh}
-										on:click={() => { rowHeight = rh; showRowHeightMenu = false; }}
+										onclick={() => { rowHeight = rh; showRowHeightMenu = false; }}
 										type="button"
 									>{rh === 'extra_tall' ? 'Extra Tall' : rh.charAt(0).toUpperCase() + rh.slice(1)}</button>
 								{/each}
@@ -1538,7 +1542,7 @@
 						<button
 							class="gridlite-view-control-btn"
 							class:active={showColumnSpacingMenu}
-							on:click|stopPropagation={() => {
+							onclick={(e) => { e.stopPropagation();
 								showColumnSpacingMenu = !showColumnSpacingMenu;
 								showRowHeightMenu = false;
 							}}
@@ -1556,7 +1560,7 @@
 									<button
 										class="gridlite-view-dropdown-item"
 										class:selected={columnSpacing === sp}
-										on:click={() => { columnSpacing = sp; showColumnSpacingMenu = false; }}
+										onclick={() => { columnSpacing = sp; showColumnSpacingMenu = false; }}
 										type="button"
 									>{sp.charAt(0).toUpperCase() + sp.slice(1)}</button>
 								{/each}
@@ -1566,7 +1570,7 @@
 				</div>
 
 				<!-- Custom toolbar content (end) -->
-				<slot name="toolbar-end" />
+				{@render toolbarEnd?.()}
 			</div>
 		{/if}
 
@@ -1584,34 +1588,34 @@
 							class:dragging={draggedColumnId === col.name}
 							class:drag-over={dragOverColumnId === col.name && draggedColumnId !== col.name}
 							style={features.columnResizing ? `width: ${columnSizing[col.name] ?? config?.columns?.find((c) => c.name === col.name)?.width ?? COL_DEFAULT_WIDTH}px;` : ''}
-							on:dragover={(e) => handleDragOver(e, col.name)}
-							on:drop={(e) => handleDrop(e, col.name)}
+							ondragover={(e) => handleDragOver(e, col.name)}
+							ondrop={(e) => handleDrop(e, col.name)}
 						>
 							<div class="gridlite-th-wrapper">
-								<!-- svelte-ignore a11y-no-static-element-interactions -->
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<div
 									class="gridlite-th-content"
 									draggable={features.columnReordering ?? false}
-									on:dragstart={(e) => handleDragStart(e, col.name)}
-									on:dragend={handleDragEnd}
+									ondragstart={(e) => handleDragStart(e, col.name)}
+									ondragend={handleDragEnd}
 									style={features.columnReordering ? 'cursor: grab;' : ''}
 								>
 									{#if editingColumnLabel === col.name}
-										<!-- svelte-ignore a11y-autofocus -->
+										<!-- svelte-ignore a11y_autofocus -->
 										<input
 											class="gridlite-th-label-input"
 											type="text"
 											bind:value={editingLabelValue}
-											on:blur={commitLabelEdit}
-											on:keydown={handleLabelKeydown}
-											on:click|stopPropagation
+											onblur={commitLabelEdit}
+											onkeydown={handleLabelKeydown}
+											onclick={(e) => e.stopPropagation()}
 											autofocus
 										/>
 									{:else}
-										<!-- svelte-ignore a11y-no-static-element-interactions -->
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
 										<span
 											class="gridlite-th-label"
-											on:dblclick|stopPropagation={() => startEditingLabel(col.name)}
+											ondblclick={(e) => { e.stopPropagation(); startEditingLabel(col.name); }}
 											title="Double-click to rename"
 										>
 											{getColumnLabel(col)}
@@ -1619,8 +1623,8 @@
 									{/if}
 									<button
 										class="gridlite-th-menu-btn"
-										on:click|stopPropagation={() =>
-											(columnMenuOpen = columnMenuOpen === col.name ? null : col.name)}
+										onclick={(e) => { e.stopPropagation();
+											columnMenuOpen = columnMenuOpen === col.name ? null : col.name; }}
 										title="Column options"
 										type="button"
 									>
@@ -1643,13 +1647,13 @@
 									/>
 								</div>
 								{#if features.columnResizing}
-									<!-- svelte-ignore a11y-no-static-element-interactions -->
+									<!-- svelte-ignore a11y_no_static_element_interactions -->
 									<div
 										class="gridlite-resize-handle"
 										class:resizing={resizingColumn === col.name}
-										on:mousedown={(e) => handleResizeStart(e, col.name)}
-										on:touchstart={(e) => handleResizeStart(e, col.name)}
-									/>
+										onmousedown={(e) => handleResizeStart(e, col.name)}
+										ontouchstart={(e) => handleResizeStart(e, col.name)}
+									></div>
 								{/if}
 							</div>
 						</th>
@@ -1676,10 +1680,10 @@
 								<!-- Group header row -->
 								<tr
 									class="gridlite-group-row"
-									on:click={() => toggleGroupExpand(group)}
+									onclick={() => toggleGroupExpand(group)}
 									role="button"
 									tabindex={0}
-									on:keydown={(e) => {
+									onkeydown={(e) => {
 										if (e.key === 'Enter' || e.key === ' ') {
 											e.preventDefault();
 											toggleGroupExpand(group);
@@ -1711,12 +1715,12 @@
 								<!-- Child data row -->
 								<tr
 									class={`gridlite-tr gridlite-group-child ${classNames.tr ?? ''}`}
-									on:click={() => {
+									onclick={() => {
 										onRowClick?.(row);
 									}}
 									role={onRowClick ? 'button' : undefined}
 									tabindex={onRowClick ? 0 : undefined}
-									on:keydown={(e) => {
+									onkeydown={(e) => {
 										if ((e.key === 'Enter' || e.key === ' ')) {
 											e.preventDefault();
 											onRowClick?.(row);
@@ -1726,20 +1730,20 @@
 									{#each nonGroupedColumns as col}
 										<td
 											class={`gridlite-td ${classNames.td ?? ''}`}
-											on:contextmenu={(e) => handleCellContextMenu(e, row, col)}
+											oncontextmenu={(e) => handleCellContextMenu(e, row, col)}
 										>
-											<slot name="cell" value={row[col.name]} {row} column={col.name}>
-												{#if config?.columns}
-													{@const colConfig = config.columns.find((c) => c.name === col.name)}
-													{#if colConfig?.format}
-														{colConfig.format(row[col.name])}
-													{:else}
-														{row[col.name] ?? ''}
-													{/if}
+											{#if cell}
+												{@render cell({ value: row[col.name], row, column: col.name })}
+											{:else if config?.columns}
+												{@const colConfig = config.columns.find((c) => c.name === col.name)}
+												{#if colConfig?.format}
+													{colConfig.format(row[col.name])}
 												{:else}
 													{row[col.name] ?? ''}
 												{/if}
-											</slot>
+											{:else}
+												{row[col.name] ?? ''}
+											{/if}
 										</td>
 									{/each}
 								</tr>
@@ -1758,7 +1762,7 @@
 						{#each storeState.rows as row, rowIndex}
 							<tr
 								class={`gridlite-tr ${classNames.tr ?? ''}`}
-								on:click={() => {
+								onclick={() => {
 									if (features.rowDetail) {
 										openRowDetail(rowIndex);
 									}
@@ -1766,7 +1770,7 @@
 								}}
 								role={onRowClick || features.rowDetail ? 'button' : undefined}
 								tabindex={onRowClick || features.rowDetail ? 0 : undefined}
-								on:keydown={(e) => {
+								onkeydown={(e) => {
 									if ((e.key === 'Enter' || e.key === ' ')) {
 										e.preventDefault();
 										if (features.rowDetail) openRowDetail(rowIndex);
@@ -1777,20 +1781,20 @@
 								{#each orderedColumns as col}
 									<td
 										class={`gridlite-td ${classNames.td ?? ''}`}
-										on:contextmenu={(e) => handleCellContextMenu(e, row, col)}
+										oncontextmenu={(e) => handleCellContextMenu(e, row, col)}
 									>
-										<slot name="cell" value={row[col.name]} {row} column={col.name}>
-											{#if config?.columns}
-												{@const colConfig = config.columns.find((c) => c.name === col.name)}
-												{#if colConfig?.format}
-													{colConfig.format(row[col.name])}
-												{:else}
-													{row[col.name] ?? ''}
-												{/if}
+										{#if cell}
+											{@render cell({ value: row[col.name], row, column: col.name })}
+										{:else if config?.columns}
+											{@const colConfig = config.columns.find((c) => c.name === col.name)}
+											{#if colConfig?.format}
+												{colConfig.format(row[col.name])}
 											{:else}
 												{row[col.name] ?? ''}
 											{/if}
-										</slot>
+										{:else}
+											{row[col.name] ?? ''}
+										{/if}
 									</td>
 								{/each}
 							</tr>
@@ -1810,22 +1814,22 @@
 					<select
 						class="gridlite-page-size-select"
 						value={pageSize}
-						on:change={(e) => setPageSize(Number(e.currentTarget.value))}
+						onchange={(e) => setPageSize(Number(e.currentTarget.value))}
 					>
 						{#each config?.pagination?.pageSizeOptions ?? [10, 25, 50, 100] as size}
 							<option value={size}>{size} / page</option>
 						{/each}
 					</select>
-					<button disabled={page === 0} on:click={() => setPage(0)}>
+					<button disabled={page === 0} onclick={() => setPage(0)}>
 						First
 					</button>
-					<button disabled={page === 0} on:click={() => setPage(page - 1)}>
+					<button disabled={page === 0} onclick={() => setPage(page - 1)}>
 						Prev
 					</button>
-					<button disabled={page >= totalPages - 1} on:click={() => setPage(page + 1)}>
+					<button disabled={page >= totalPages - 1} onclick={() => setPage(page + 1)}>
 						Next
 					</button>
-					<button disabled={page >= totalPages - 1} on:click={() => setPage(totalPages - 1)}>
+					<button disabled={page >= totalPages - 1} onclick={() => setPage(totalPages - 1)}>
 						Last
 					</button>
 				</div>
@@ -1898,8 +1902,8 @@
 				onNext={nextRowDetail}
 			>
 				{#if rowDetailRow}
-					{#if $$slots['row-detail']}
-						<slot name="row-detail" row={rowDetailRow} close={closeRowDetail} />
+					{#if rowDetail}
+						{@render rowDetail({ row: rowDetailRow, close: closeRowDetail })}
 					{:else}
 						<dl class="gridlite-row-detail">
 							{#each orderedColumns as col}

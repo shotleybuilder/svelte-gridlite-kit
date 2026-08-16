@@ -13,9 +13,9 @@
 	import '@shotleybuilder/svelte-gridlite-kit/styles';
 	import { createPGLiteAdapter, type PGliteWithLive } from '@shotleybuilder/gridlite-adapter-pglite';
 
-	let db: PGliteWithLive | null = null;
-	let adapter: QueryAdapter | null = null;
-	let ready = false;
+	let db: PGliteWithLive | null = $state(null);
+	let adapter: QueryAdapter | null = $state(null);
+	let ready = $state(false);
 	let grid: GridLite;
 
 	const departments = ['Engineering', 'Marketing', 'Sales', 'Finance', 'HR'];
@@ -77,11 +77,11 @@
 		<!-- Programmatic filter buttons -->
 		<div class="buttons">
 			{#each departments as dept}
-				<button on:click={() => filterDepartment(dept)}>{dept}</button>
+				<button onclick={() => filterDepartment(dept)}>{dept}</button>
 			{/each}
-			<button on:click={filterHighSalary}>Salary &gt; $80k</button>
-			<button on:click={filterCombined}>Engineering + &gt;$60k</button>
-			<button class="clear" on:click={clearFilters}>Clear All</button>
+			<button onclick={filterHighSalary}>Salary &gt; $80k</button>
+			<button onclick={filterCombined}>Engineering + &gt;$60k</button>
+			<button class="clear" onclick={clearFilters}>Clear All</button>
 		</div>
 
 		<GridLite

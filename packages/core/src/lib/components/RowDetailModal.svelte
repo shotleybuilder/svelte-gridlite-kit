@@ -8,16 +8,27 @@
 	 */
 
 	import { onMount, onDestroy } from 'svelte';
+	import type { Snippet } from 'svelte';
 
-	export let isOpen: boolean = false;
-	export let hasPrev: boolean = false;
-	export let hasNext: boolean = false;
+	let {
+		isOpen = false,
+		hasPrev = false,
+		hasNext = false,
+		onClose,
+		onPrev = undefined,
+		onNext = undefined,
+		children
+	}: {
+		isOpen?: boolean;
+		hasPrev?: boolean;
+		hasNext?: boolean;
+		onClose: () => void;
+		onPrev?: (() => void) | undefined;
+		onNext?: (() => void) | undefined;
+		children?: Snippet;
+	} = $props();
 
-	export let onClose: () => void;
-	export let onPrev: (() => void) | undefined = undefined;
-	export let onNext: (() => void) | undefined = undefined;
-
-	let modalElement: HTMLElement | null = null;
+	let modalElement: HTMLElement | null = $state(null);
 	let previouslyFocused: HTMLElement | null = null;
 	let mounted = false;
 
@@ -51,7 +62,8 @@
 		}
 	}
 
-	$: if (mounted) {
+	$effect(() => {
+		if (!mounted) return;
 		if (isOpen) {
 			previouslyFocused = document.activeElement as HTMLElement;
 			document.addEventListener('keydown', handleKeydown);
@@ -67,7 +79,7 @@
 				previouslyFocused = null;
 			}
 		}
-	}
+	});
 
 	onMount(() => {
 		mounted = true;
@@ -82,9 +94,9 @@
 </script>
 
 {#if isOpen}
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
-	<!-- svelte-ignore a11y-no-static-element-interactions -->
-	<div class="row-detail-backdrop" on:click={handleBackdropClick}>
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div class="row-detail-backdrop" onclick={handleBackdropClick}>
 		<div
 			class="row-detail-modal"
 			bind:this={modalElement}
@@ -97,7 +109,7 @@
 					<button
 						class="nav-btn"
 						disabled={!hasPrev}
-						on:click={handlePrev}
+						onclick={handlePrev}
 						aria-label="Previous row"
 						title="Previous row"
 					>
@@ -113,7 +125,7 @@
 					<button
 						class="nav-btn"
 						disabled={!hasNext}
-						on:click={handleNext}
+						onclick={handleNext}
 						aria-label="Next row"
 						title="Next row"
 					>
@@ -127,7 +139,7 @@
 						</svg>
 					</button>
 				</div>
-				<button class="close-btn" on:click={handleClose} aria-label="Close" title="Close">
+				<button class="close-btn" onclick={handleClose} aria-label="Close" title="Close">
 					<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path
 							stroke-linecap="round"
@@ -140,7 +152,9 @@
 			</div>
 
 			<div class="row-detail-body">
-				<slot />
+				{#if children}
+					{@render children()}
+				{/if}
 			</div>
 		</div>
 	</div>

@@ -7,29 +7,41 @@
 	 * instead of TanStack column.getIsSorted().
 	 */
 
-	import { onDestroy } from 'svelte';
 	import type { SortConfig } from '../types.js';
 
-	export let columnName: string;
-	export let isOpen: boolean = false;
-	export let sorting: SortConfig[] = [];
-	export let canSort: boolean = true;
-	export let canFilter: boolean = true;
-	export let canGroup: boolean = true;
+	let {
+		columnName,
+		isOpen = false,
+		sorting = [],
+		canSort = true,
+		canFilter = true,
+		canGroup = true,
+		onSort,
+		onFilter,
+		onGroup,
+		onHide,
+		onClose
+	}: {
+		columnName: string;
+		isOpen?: boolean;
+		sorting?: SortConfig[];
+		canSort?: boolean;
+		canFilter?: boolean;
+		canGroup?: boolean;
+		onSort: (columnName: string, direction: 'asc' | 'desc') => void;
+		onFilter: (columnName: string) => void;
+		onGroup: (columnName: string) => void;
+		onHide: (columnName: string) => void;
+		onClose: () => void;
+	} = $props();
 
-	export let onSort: (columnName: string, direction: 'asc' | 'desc') => void;
-	export let onFilter: (columnName: string) => void;
-	export let onGroup: (columnName: string) => void;
-	export let onHide: (columnName: string) => void;
-	export let onClose: () => void;
-
-	let menuElement: HTMLElement;
+	let menuElement = $state<HTMLElement>(undefined!);
 
 	// Current sort direction for this column
-	$: currentSort = (() => {
+	let currentSort = $derived.by(() => {
 		const s = sorting.find((s) => s.column === columnName);
 		return s?.direction ?? null;
-	})();
+	});
 
 	function handleSortAsc() {
 		onSort(columnName, 'asc');
@@ -68,23 +80,25 @@
 		}
 	}
 
-	$: if (typeof document !== 'undefined') {
-		if (isOpen) {
-			setTimeout(() => {
-				document.addEventListener('mousedown', handleClickOutside);
-				document.addEventListener('keydown', handleKeydown);
-			}, 0);
-		} else {
-			document.removeEventListener('mousedown', handleClickOutside);
-			document.removeEventListener('keydown', handleKeydown);
-		}
-	}
-
-	onDestroy(() => {
+	$effect(() => {
 		if (typeof document !== 'undefined') {
-			document.removeEventListener('mousedown', handleClickOutside);
-			document.removeEventListener('keydown', handleKeydown);
+			if (isOpen) {
+				setTimeout(() => {
+					document.addEventListener('mousedown', handleClickOutside);
+					document.addEventListener('keydown', handleKeydown);
+				}, 0);
+			} else {
+				document.removeEventListener('mousedown', handleClickOutside);
+				document.removeEventListener('keydown', handleKeydown);
+			}
 		}
+
+		return () => {
+			if (typeof document !== 'undefined') {
+				document.removeEventListener('mousedown', handleClickOutside);
+				document.removeEventListener('keydown', handleKeydown);
+			}
+		};
 	});
 </script>
 
@@ -94,7 +108,7 @@
 			<button
 				class="menu-item"
 				class:active={currentSort === 'asc'}
-				on:click={handleSortAsc}
+				onclick={handleSortAsc}
 			>
 				<svg class="menu-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
 					<path
@@ -114,7 +128,7 @@
 			<button
 				class="menu-item"
 				class:active={currentSort === 'desc'}
-				on:click={handleSortDesc}
+				onclick={handleSortDesc}
 			>
 				<svg class="menu-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
 					<path
@@ -135,7 +149,7 @@
 		{/if}
 
 		{#if canFilter}
-			<button class="menu-item" on:click={handleFilter}>
+			<button class="menu-item" onclick={handleFilter}>
 				<svg class="menu-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
 					<path
 						d="M2 3h12M4 6h8M6 9h4M7 12h2"
@@ -152,7 +166,7 @@
 		{/if}
 
 		{#if canGroup}
-			<button class="menu-item" on:click={handleGroup}>
+			<button class="menu-item" onclick={handleGroup}>
 				<svg class="menu-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
 					<path
 						d="M2 4h12M4 8h8M6 12h4"
@@ -168,7 +182,7 @@
 			<div class="menu-divider"></div>
 		{/if}
 
-		<button class="menu-item" on:click={handleHideColumn}>
+		<button class="menu-item" onclick={handleHideColumn}>
 			<svg class="menu-icon" width="16" height="16" viewBox="0 0 16 16" fill="none">
 				<path
 					d="M2 8C2 8 4.5 3 8 3C11.5 3 14 8 14 8C14 8 11.5 13 8 13C4.5 13 2 8 2 8Z"

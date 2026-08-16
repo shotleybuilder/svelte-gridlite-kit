@@ -9,12 +9,21 @@
 	import type { SortConfig, ColumnMetadata, ColumnConfig } from '../types.js';
 	import SortConditionComponent from './SortCondition.svelte';
 
-	export let columns: ColumnMetadata[];
-	export let columnConfigs: ColumnConfig[] = [];
-	export let sorting: SortConfig[] = [];
-	export let onSortingChange: (sorting: SortConfig[]) => void;
-	export let isExpanded = false;
-	export let onExpandedChange: ((expanded: boolean) => void) | undefined = undefined;
+	let {
+		columns,
+		columnConfigs = [],
+		sorting = [],
+		onSortingChange,
+		isExpanded = false,
+		onExpandedChange = undefined
+	}: {
+		columns: ColumnMetadata[];
+		columnConfigs?: ColumnConfig[];
+		sorting?: SortConfig[];
+		onSortingChange: (sorting: SortConfig[]) => void;
+		isExpanded?: boolean;
+		onExpandedChange?: ((expanded: boolean) => void) | undefined;
+	} = $props();
 
 	function setExpanded(value: boolean) {
 		isExpanded = value;
@@ -49,17 +58,17 @@
 	}
 
 	// Columns not yet in sorting list
-	$: availableColumnsForNew = columns.filter(
+	let availableColumnsForNew = $derived(columns.filter(
 		(col) => !sorting.some((s) => s.column === col.name)
-	);
+	));
 
-	$: hasSorts = sorting.length > 0;
-	$: validSortCount = sorting.filter((s) => s.column !== '').length;
-	$: canAddMore = availableColumnsForNew.length > 0;
+	let hasSorts = $derived(sorting.length > 0);
+	let validSortCount = $derived(sorting.filter((s) => s.column !== '').length);
+	let canAddMore = $derived(availableColumnsForNew.length > 0);
 </script>
 
 <div class="sort-bar">
-	<button class="sort-toggle-btn" on:click={() => setExpanded(!isExpanded)}>
+	<button class="sort-toggle-btn" onclick={() => setExpanded(!isExpanded)}>
 		<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 			<path
 				stroke-linecap="round"
@@ -88,7 +97,7 @@
 			{#if hasSorts}
 				<div class="sort-header">
 					<span class="sort-label">Sort by</span>
-					<button class="clear-all-btn" on:click={clearAllSorts}> Clear all </button>
+					<button class="clear-all-btn" onclick={clearAllSorts}> Clear all </button>
 				</div>
 
 				<div class="sort-levels">
@@ -105,7 +114,7 @@
 				</div>
 			{/if}
 
-			<button class="add-sort-btn" on:click={addSort} disabled={!canAddMore}>
+			<button class="add-sort-btn" onclick={addSort} disabled={!canAddMore}>
 				<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path
 						stroke-linecap="round"

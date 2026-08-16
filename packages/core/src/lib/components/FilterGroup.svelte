@@ -16,38 +16,35 @@
 	} from '../types.js';
 	import { isFilterGroup } from '../types.js';
 	import FilterConditionComponent from './FilterCondition.svelte';
+	import FilterGroupComponent from './FilterGroup.svelte';
 	import type { QueryAdapter } from '../adapter.js';
 
-	/** The filter group data */
-	export let group: FilterGroup;
+	let {
+		group,
+		depth = 0,
+		adapter,
+		columns,
+		columnConfigs = [],
+		onUpdate,
+		onRemove
+	}: {
+		group: FilterGroup;
+		depth?: number;
+		adapter: QueryAdapter;
+		columns: ColumnMetadata[];
+		columnConfigs?: ColumnConfig[];
+		onUpdate: (updated: FilterGroup) => void;
+		onRemove: () => void;
+	} = $props();
 
-	/** Nesting depth (0 = top-level inside FilterBar) */
-	export let depth: number = 0;
-
-	/** Max nesting depth */
 	const MAX_DEPTH = 3;
-
-	/** Query adapter for fetching filter suggestions */
-	export let adapter: QueryAdapter;
-
-	/** Introspected column metadata */
-	export let columns: ColumnMetadata[];
-
-	/** Column config overrides */
-	export let columnConfigs: ColumnConfig[] = [];
-
-	/** Called when this group is updated */
-	export let onUpdate: (updated: FilterGroup) => void;
-
-	/** Called when this group should be removed */
-	export let onRemove: () => void;
 
 	// ─── Value suggestion caches (per leaf condition) ──────────────────────────
 
 	let columnValuesCache: Map<string, string[]> = new Map();
 	let numericRangeCache: Map<string, { min: number; max: number } | null> = new Map();
-	let conditionValues: Map<string, string[]> = new Map();
-	let conditionRanges: Map<string, { min: number; max: number } | null> = new Map();
+	let conditionValues: Map<string, string[]> = $state(new Map());
+	let conditionRanges: Map<string, { min: number; max: number } | null> = $state(new Map());
 
 	async function getColumnValues(columnName: string): Promise<string[]> {
 		if (!columnName) return [];
@@ -95,7 +92,7 @@
 	}
 
 	// Load suggestions for leaf children
-	$: {
+	$effect(() => {
 		for (const child of group.children) {
 			if (!isFilterGroup(child) && child.field) {
 				if (!conditionValues.has(child.id)) {
@@ -103,7 +100,7 @@
 				}
 			}
 		}
-	}
+	});
 
 	// ─── Child management ─────────────────────────────────────────────────────
 
@@ -174,13 +171,13 @@
 		<select
 			class="group-logic-select"
 			value={group.logic}
-			on:change={(e) => handleLogicChange(e.currentTarget.value === 'or' ? 'or' : 'and')}
+			onchange={(e) => handleLogicChange(e.currentTarget.value === 'or' ? 'or' : 'and')}
 		>
 			<option value="and">AND</option>
 			<option value="or">OR</option>
 		</select>
 		<span class="group-label">group</span>
-		<button class="group-remove-btn" on:click={onRemove} title="Remove group" type="button">
+		<button class="group-remove-btn" onclick={onRemove} title="Remove group" type="button">
 			<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 			</svg>
@@ -190,7 +187,7 @@
 	<div class="gridlite-filter-group-children">
 		{#each group.children as child, index (child.id)}
 			{#if isFilterGroup(child)}
-				<svelte:self
+				<FilterGroupComponent
 					group={child}
 					depth={depth + 1}
 					{adapter}
@@ -223,14 +220,14 @@
 	</div>
 
 	<div class="gridlite-filter-group-actions">
-		<button class="add-condition-btn" on:click={addCondition} type="button">
+		<button class="add-condition-btn" onclick={addCondition} type="button">
 			<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
 			</svg>
 			Condition
 		</button>
 		{#if depth < MAX_DEPTH}
-			<button class="add-group-btn" on:click={addSubGroup} type="button">
+			<button class="add-group-btn" onclick={addSubGroup} type="button">
 				<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
 				</svg>

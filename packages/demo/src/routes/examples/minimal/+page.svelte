@@ -13,9 +13,9 @@
 	import { createPGLiteAdapter, type PGliteWithLive } from '@shotleybuilder/gridlite-adapter-pglite';
 	import type { QueryAdapter } from '@shotleybuilder/svelte-gridlite-kit';
 
-	let db: PGliteWithLive | null = null;
-	let adapter: QueryAdapter | null = null;
-	let ready = false;
+	let db: PGliteWithLive | null = $state(null);
+	let adapter: QueryAdapter | null = $state(null);
+	let ready = $state(false);
 
 	onMount(async () => {
 		// 1. Create PGLite with the live extension (required for reactive queries)

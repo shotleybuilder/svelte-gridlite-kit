@@ -17,12 +17,21 @@
 		ColumnConfig
 	} from '../types.js';
 
-	export let columns: ColumnMetadata[];
-	export let columnConfigs: ColumnConfig[] = [];
-	export let grouping: GroupConfig[] = [];
-	export let onGroupingChange: (grouping: GroupConfig[]) => void;
-	export let isExpanded = false;
-	export let onExpandedChange: ((expanded: boolean) => void) | undefined = undefined;
+	let {
+		columns,
+		columnConfigs = [],
+		grouping = [],
+		onGroupingChange,
+		isExpanded = false,
+		onExpandedChange = undefined
+	}: {
+		columns: ColumnMetadata[];
+		columnConfigs?: ColumnConfig[];
+		grouping?: GroupConfig[];
+		onGroupingChange: (grouping: GroupConfig[]) => void;
+		isExpanded?: boolean;
+		onExpandedChange?: ((expanded: boolean) => void) | undefined;
+	} = $props();
 
 	const MAX_LEVELS = 3;
 
@@ -111,19 +120,19 @@
 	}
 
 	// Numeric columns (for sum/avg aggregations)
-	$: numericColumns = columns.filter((col) => {
+	let numericColumns = $derived(columns.filter((col) => {
 		const cfg = columnConfigs.find((c) => c.name === col.name);
 		const dt = cfg?.dataType ?? col.dataType;
 		return dt === 'number';
-	});
+	}));
 
-	$: hasGroups = grouping.length > 0;
-	$: validGroupCount = grouping.filter((g) => g.column !== '').length;
-	$: canAddMore = grouping.length < MAX_LEVELS;
+	let hasGroups = $derived(grouping.length > 0);
+	let validGroupCount = $derived(grouping.filter((g) => g.column !== '').length);
+	let canAddMore = $derived(grouping.length < MAX_LEVELS);
 </script>
 
 <div class="group-bar">
-	<button class="group-toggle-btn" on:click={() => setExpanded(!isExpanded)}>
+	<button class="group-toggle-btn" onclick={() => setExpanded(!isExpanded)}>
 		<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 			<path
 				stroke-linecap="round"
@@ -152,7 +161,7 @@
 			{#if hasGroups}
 				<div class="group-header">
 					<span class="group-label">Group by</span>
-					<button class="clear-all-btn" on:click={clearAllGroups}> Clear all </button>
+					<button class="clear-all-btn" onclick={clearAllGroups}> Clear all </button>
 				</div>
 
 				<div class="group-levels">
@@ -162,7 +171,7 @@
 								<select
 									class="field-select"
 									value={group.column}
-									on:change={(e) => updateGroupColumn(index, e.currentTarget.value)}
+									onchange={(e) => updateGroupColumn(index, e.currentTarget.value)}
 								>
 									<option value="">Select field...</option>
 									{#each columns as column}
@@ -172,7 +181,7 @@
 									{/each}
 								</select>
 
-								<button class="remove-btn" on:click={() => removeGroup(index)} title="Remove group" type="button">
+								<button class="remove-btn" onclick={() => removeGroup(index)} title="Remove group" type="button">
 									<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path
 											stroke-linecap="round"
@@ -193,7 +202,7 @@
 												<select
 													class="agg-function-select"
 													value={agg.function}
-													on:change={(e) => handleAggFunctionChange(index, aggIndex, e.currentTarget.value)}
+													onchange={(e) => handleAggFunctionChange(index, aggIndex, e.currentTarget.value)}
 												>
 													{#each aggregateFunctions as fn}
 														<option value={fn.value}>{fn.label}</option>
@@ -203,7 +212,7 @@
 												<select
 													class="agg-column-select"
 													value={agg.column}
-													on:change={(e) =>
+													onchange={(e) =>
 														updateAggregation(index, aggIndex, {
 															column: e.currentTarget.value
 														})}
@@ -219,7 +228,7 @@
 
 												<button
 													class="remove-btn small"
-													on:click={() => removeAggregation(index, aggIndex)}
+													onclick={() => removeAggregation(index, aggIndex)}
 													title="Remove aggregation"
 													type="button"
 												>
@@ -239,7 +248,7 @@
 
 								<button
 									class="add-agg-btn"
-									on:click={() => addAggregation(index)}
+									onclick={() => addAggregation(index)}
 									type="button"
 								>
 									+ Add aggregation
@@ -251,7 +260,7 @@
 			{/if}
 
 			{#if canAddMore}
-				<button class="add-group-btn" on:click={addGroup}>
+				<button class="add-group-btn" onclick={addGroup}>
 					<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path
 							stroke-linecap="round"

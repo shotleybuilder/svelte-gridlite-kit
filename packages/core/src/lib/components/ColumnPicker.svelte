@@ -16,47 +16,61 @@
 
 	// ─── Props ────────────────────────────────────────────────────────────────
 
-	export let columns: ColumnMetadata[];
-	export let columnConfigs: ColumnConfig[] = [];
-	export let columnVisibility: Record<string, boolean> = {};
-	export let columnOrder: string[] = [];
-	export let isOpen: boolean;
-	export let defaultVisibleColumns: string[] | undefined = undefined;
-	export let onVisibilityChange: (column: string, visible: boolean) => void;
-	export let onToggleAll: (show: boolean) => void;
-	export let onOrderChange: ((newOrder: string[]) => void) | undefined = undefined;
+	let {
+		columns,
+		columnConfigs = [],
+		columnVisibility = {},
+		columnOrder = [],
+		isOpen,
+		defaultVisibleColumns = undefined,
+		onVisibilityChange,
+		onToggleAll,
+		onOrderChange = undefined
+	}: {
+		columns: ColumnMetadata[];
+		columnConfigs?: ColumnConfig[];
+		columnVisibility?: Record<string, boolean>;
+		columnOrder?: string[];
+		isOpen: boolean;
+		defaultVisibleColumns?: string[] | undefined;
+		onVisibilityChange: (column: string, visible: boolean) => void;
+		onToggleAll: (show: boolean) => void;
+		onOrderChange?: ((newOrder: string[]) => void) | undefined;
+	} = $props();
 
 	// ─── Internal State ───────────────────────────────────────────────────────
 
-	let searchQuery = '';
-	let searchInput: HTMLInputElement;
+	let searchQuery = $state('');
+	let searchInput = $state<HTMLInputElement>(undefined!);
 
 	// Multi-select state
-	let selectedColumns: Set<string> = new Set();
-	let lastClickedColumn: string | null = null;
+	let selectedColumns: Set<string> = $state(new Set());
+	let lastClickedColumn: string | null = $state(null);
 
 	// Drag state
-	let draggedColumns: string[] = [];
-	let dropTargetColumn: string | null = null;
-	let dropPosition: 'before' | 'after' | null = null;
-	let dropTargetSection: 'visible' | 'hidden' | null = null;
+	let draggedColumns: string[] = $state([]);
+	let dropTargetColumn: string | null = $state(null);
+	let dropPosition: 'before' | 'after' | null = $state(null);
+	let dropTargetSection: 'visible' | 'hidden' | null = $state(null);
 
 	// Keyboard focus
-	let focusedIndex = -1;
-	let listContainer: HTMLDivElement;
+	let focusedIndex = $state(-1);
+	let listContainer = $state<HTMLDivElement>(undefined!);
 
 	// ─── Auto-focus & Reset ───────────────────────────────────────────────────
 
-	$: if (isOpen) {
-		tick().then(() => {
-			searchInput?.focus();
-		});
-	} else {
-		searchQuery = '';
-		selectedColumns = new Set();
-		lastClickedColumn = null;
-		focusedIndex = -1;
-	}
+	$effect(() => {
+		if (isOpen) {
+			tick().then(() => {
+				searchInput?.focus();
+			});
+		} else {
+			searchQuery = '';
+			selectedColumns = new Set();
+			lastClickedColumn = null;
+			focusedIndex = -1;
+		}
+	});
 
 	// ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -89,22 +103,22 @@
 
 	// ─── Reactive Computeds ───────────────────────────────────────────────────
 
-	$: filteredColumns = columns.filter((col) => {
+	let filteredColumns = $derived(columns.filter((col) => {
 		if (!searchQuery) return true;
 		const q = searchQuery.toLowerCase();
 		const label = getLabel(col).toLowerCase();
 		const name = col.name.toLowerCase();
 		return label.includes(q) || name.includes(q);
-	});
-	$: visibleCols = ordered(filteredColumns.filter((c) => isVisible(c.name, columnVisibility)), columnOrder);
-	$: hiddenCols = ordered(filteredColumns.filter((c) => !isVisible(c.name, columnVisibility)), columnOrder);
+	}));
+	let visibleCols = $derived(ordered(filteredColumns.filter((c) => isVisible(c.name, columnVisibility)), columnOrder));
+	let hiddenCols = $derived(ordered(filteredColumns.filter((c) => !isVisible(c.name, columnVisibility)), columnOrder));
 
 	// Flat list for keyboard navigation (visible first, then hidden)
-	$: allItems = [...visibleCols, ...hiddenCols];
+	let allItems = $derived([...visibleCols, ...hiddenCols]);
 
 	// Total counts (unfiltered)
-	$: totalVisible = columns.filter((c) => isVisible(c.name, columnVisibility)).length;
-	$: totalHidden = columns.length - totalVisible;
+	let totalVisible = $derived(columns.filter((c) => isVisible(c.name, columnVisibility)).length);
+	let totalHidden = $derived(columns.length - totalVisible);
 
 	// ─── Multi-Select ─────────────────────────────────────────────────────────
 
@@ -331,13 +345,13 @@
 </script>
 
 {#if isOpen}
-	<!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
 	<div
 		class="gridlite-column-picker"
-		on:click|stopPropagation
-		on:keydown={handleKeydown}
-		on:drop={handleDrop}
-		on:dragend={handleDragEnd}
+		onclick={(e) => e.stopPropagation()}
+		onkeydown={handleKeydown}
+		ondrop={handleDrop}
+		ondragend={handleDragEnd}
 		role="listbox"
 		aria-label="Column picker"
 		tabindex="-1"
@@ -357,7 +371,7 @@
 			{#if searchQuery}
 				<button
 					class="gridlite-column-picker-search-clear"
-					on:click={() => { searchQuery = ''; searchInput?.focus(); }}
+					onclick={() => { searchQuery = ''; searchInput?.focus(); }}
 					type="button"
 					title="Clear search"
 				>
@@ -370,8 +384,8 @@
 
 		<!-- Actions -->
 		<div class="gridlite-column-picker-actions">
-			<button type="button" on:click={() => onToggleAll(true)}>Show All</button>
-			<button type="button" on:click={() => onToggleAll(false)}>Hide All</button>
+			<button type="button" onclick={() => onToggleAll(true)}>Show All</button>
+			<button type="button" onclick={() => onToggleAll(false)}>Hide All</button>
 			{#if selectedColumns.size > 1}
 				<span class="gridlite-column-picker-selection-count">{selectedColumns.size} selected</span>
 			{/if}
@@ -379,10 +393,10 @@
 
 		<div class="gridlite-column-picker-list" bind:this={listContainer}>
 			<!-- Visible section -->
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
 				class="gridlite-column-picker-section"
-				on:dragover={(e) => handleDragOverSection(e, 'visible')}
+				ondragover={(e) => handleDragOverSection(e, 'visible')}
 			>
 				<div class="gridlite-column-picker-section-header">
 					<span>Visible</span>
@@ -393,7 +407,7 @@
 					{@const isSelected = selectedColumns.has(col.name)}
 					{@const isDragged = draggedColumns.includes(col.name)}
 					{@const isDropTarget = dropTargetColumn === col.name}
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div
 						class="gridlite-column-picker-item"
 						class:selected={isSelected}
@@ -401,18 +415,18 @@
 						class:drop-before={isDropTarget && dropPosition === 'before'}
 						class:drop-after={isDropTarget && dropPosition === 'after'}
 						class:focused={focusedIndex === globalIdx}
-						on:click={(e) => handleItemClick(e, col.name)}
-						on:dragover={(e) => handleDragOver(e, col.name, 'visible')}
-						on:dragleave={handleDragLeave}
+						onclick={(e) => handleItemClick(e, col.name)}
+						ondragover={(e) => handleDragOver(e, col.name, 'visible')}
+						ondragleave={handleDragLeave}
 						role="option"
 						tabindex="-1"
 						aria-selected={isSelected}
 					>
-						<!-- svelte-ignore a11y-no-static-element-interactions -->
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
 						<span
 							class="gridlite-column-picker-drag-handle"
 							draggable="true"
-							on:dragstart={(e) => handleDragStart(e, col.name)}
+							ondragstart={(e) => handleDragStart(e, col.name)}
 						>
 							<svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor">
 								<circle cx="3" cy="2" r="1.2" /><circle cx="7" cy="2" r="1.2" />
@@ -423,8 +437,8 @@
 						<input
 							type="checkbox"
 							checked={true}
-							on:change|stopPropagation={() => onVisibilityChange(col.name, false)}
-							on:click|stopPropagation
+							onchange={(e) => { e.stopPropagation(); onVisibilityChange(col.name, false); }}
+							onclick={(e) => e.stopPropagation()}
 						/>
 						<span class="gridlite-column-picker-item-label">{getLabel(col)}</span>
 					</div>
@@ -437,10 +451,10 @@
 			</div>
 
 			<!-- Hidden section -->
-			<!-- svelte-ignore a11y-no-static-element-interactions -->
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div
 				class="gridlite-column-picker-section"
-				on:dragover={(e) => handleDragOverSection(e, 'hidden')}
+				ondragover={(e) => handleDragOverSection(e, 'hidden')}
 			>
 				<div class="gridlite-column-picker-section-header">
 					<span>Hidden</span>
@@ -451,7 +465,7 @@
 					{@const isSelected = selectedColumns.has(col.name)}
 					{@const isDragged = draggedColumns.includes(col.name)}
 					{@const isDropTarget = dropTargetColumn === col.name}
-					<!-- svelte-ignore a11y-no-static-element-interactions -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
 					<div
 						class="gridlite-column-picker-item gridlite-column-picker-item-hidden"
 						class:selected={isSelected}
@@ -459,18 +473,18 @@
 						class:drop-before={isDropTarget && dropPosition === 'before'}
 						class:drop-after={isDropTarget && dropPosition === 'after'}
 						class:focused={focusedIndex === globalIdx}
-						on:click={(e) => handleItemClick(e, col.name)}
-						on:dragover={(e) => handleDragOver(e, col.name, 'hidden')}
-						on:dragleave={handleDragLeave}
+						onclick={(e) => handleItemClick(e, col.name)}
+						ondragover={(e) => handleDragOver(e, col.name, 'hidden')}
+						ondragleave={handleDragLeave}
 						role="option"
 						tabindex="-1"
 						aria-selected={isSelected}
 					>
-						<!-- svelte-ignore a11y-no-static-element-interactions -->
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
 						<span
 							class="gridlite-column-picker-drag-handle"
 							draggable="true"
-							on:dragstart={(e) => handleDragStart(e, col.name)}
+							ondragstart={(e) => handleDragStart(e, col.name)}
 						>
 							<svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor">
 								<circle cx="3" cy="2" r="1.2" /><circle cx="7" cy="2" r="1.2" />
@@ -481,8 +495,8 @@
 						<input
 							type="checkbox"
 							checked={false}
-							on:change|stopPropagation={() => onVisibilityChange(col.name, true)}
-							on:click|stopPropagation
+							onchange={(e) => { e.stopPropagation(); onVisibilityChange(col.name, true); }}
+							onclick={(e) => e.stopPropagation()}
 						/>
 						<span class="gridlite-column-picker-item-label">{getLabel(col)}</span>
 					</div>

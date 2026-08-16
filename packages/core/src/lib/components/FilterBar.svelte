@@ -19,26 +19,27 @@
 	import FilterGroupComponent from './FilterGroup.svelte';
 	import type { QueryAdapter } from '../adapter.js';
 
-	/** Query adapter for fetching filter suggestions */
-	export let adapter: QueryAdapter;
-
-	/** Introspected column metadata */
-	export let columns: ColumnMetadata[];
-
-	/** Column config overrides (labels, dataType, selectOptions) */
-	export let columnConfigs: ColumnConfig[] = [];
-
-	/** Current filter nodes (conditions and/or groups) */
-	export let conditions: FilterNode[] = [];
-	export let onConditionsChange: (conditions: FilterNode[]) => void;
-
-	/** Filter logic (AND/OR) */
-	export let logic: FilterLogic = 'and';
-	export let onLogicChange: (logic: FilterLogic) => void;
-
-	/** Expand/collapse state */
-	export let isExpanded = false;
-	export let onExpandedChange: ((expanded: boolean) => void) | undefined = undefined;
+	let {
+		adapter,
+		columns,
+		columnConfigs = [],
+		conditions = [],
+		onConditionsChange,
+		logic = 'and',
+		onLogicChange,
+		isExpanded = false,
+		onExpandedChange = undefined
+	}: {
+		adapter: QueryAdapter;
+		columns: ColumnMetadata[];
+		columnConfigs?: ColumnConfig[];
+		conditions?: FilterNode[];
+		onConditionsChange: (conditions: FilterNode[]) => void;
+		logic?: FilterLogic;
+		onLogicChange: (logic: FilterLogic) => void;
+		isExpanded?: boolean;
+		onExpandedChange?: ((expanded: boolean) => void) | undefined;
+	} = $props();
 
 	// ─── Value suggestion caches ──────────────────────────────────────────────
 
@@ -90,8 +91,8 @@
 	// ─── Per-condition loaded suggestions ─────────────────────────────────────
 
 	// Reactive stores for each condition's loaded values
-	let conditionValues: Map<string, string[]> = new Map();
-	let conditionRanges: Map<string, { min: number; max: number } | null> = new Map();
+	let conditionValues: Map<string, string[]> = $state(new Map());
+	let conditionRanges: Map<string, { min: number; max: number } | null> = $state(new Map());
 	let loadingConditions: Set<string> = new Set();
 
 	// Load suggestions when a condition's field changes
@@ -112,7 +113,7 @@
 	}
 
 	// Watch conditions for field changes and load suggestions (leaf conditions only)
-	$: {
+	$effect(() => {
 		for (const cond of conditions) {
 			if (!isFilterGroup(cond) && cond.field) {
 				const cached = conditionValues.get(cond.id);
@@ -122,7 +123,7 @@
 				}
 			}
 		}
-	}
+	});
 
 	// ─── Condition management ─────────────────────────────────────────────────
 
@@ -213,7 +214,7 @@
 
 	// ─── Computed ─────────────────────────────────────────────────────────────
 
-	$: hasConditions = conditions.length > 0;
+	let hasConditions = $derived(conditions.length > 0);
 
 	function countValidLeaves(nodes: FilterNode[]): number {
 		let count = 0;
@@ -235,11 +236,11 @@
 		return count;
 	}
 
-	$: filterCount = countValidLeaves(conditions);
+	let filterCount = $derived(countValidLeaves(conditions));
 </script>
 
 <div class="filter-bar">
-	<button class="filter-toggle-btn" on:click={() => setExpanded(!isExpanded)}>
+	<button class="filter-toggle-btn" onclick={() => setExpanded(!isExpanded)}>
 		<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 			<path
 				stroke-linecap="round"
@@ -261,7 +262,7 @@
 		<div class="filter-panel">
 			{#if hasConditions}
 				<div class="filter-header">
-					<button class="clear-all-btn" on:click={clearAllConditions}> Clear all </button>
+					<button class="clear-all-btn" onclick={clearAllConditions}> Clear all </button>
 				</div>
 
 				<div class="filter-conditions">
@@ -274,7 +275,7 @@
 									<select
 										class="logic-select"
 										value={logic}
-										on:change={(e) => {
+										onchange={(e) => {
 											const newLogic = e.currentTarget.value;
 											onLogicChange(newLogic === 'or' ? 'or' : 'and');
 										}}
@@ -303,7 +304,7 @@
 									<select
 										class="logic-select"
 										value={logic}
-										on:change={(e) => {
+										onchange={(e) => {
 											const newLogic = e.currentTarget.value;
 											onLogicChange(newLogic === 'or' ? 'or' : 'and');
 										}}
@@ -330,7 +331,7 @@
 			{/if}
 
 			<div class="filter-actions">
-				<button class="add-condition-btn" on:click={addCondition}>
+				<button class="add-condition-btn" onclick={addCondition}>
 					<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path
 							stroke-linecap="round"
@@ -341,7 +342,7 @@
 					</svg>
 					Add condition
 				</button>
-				<button class="add-group-btn" on:click={addGroup}>
+				<button class="add-group-btn" onclick={addGroup}>
 					<svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path
 							stroke-linecap="round"

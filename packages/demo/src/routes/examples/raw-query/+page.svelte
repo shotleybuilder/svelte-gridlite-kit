@@ -14,15 +14,17 @@
 	import '@shotleybuilder/svelte-gridlite-kit/styles';
 	import { createPGLiteAdapter, type PGliteWithLive } from '@shotleybuilder/gridlite-adapter-pglite';
 
-	let db: PGliteWithLive | null = null;
-	let adapter: QueryAdapter | null = null;
-	let ready = false;
-	let selectedQuery = 'join';
+	let db: PGliteWithLive | null = $state(null);
+	let adapter: QueryAdapter | null = $state(null);
+	let ready = $state(false);
+	let selectedQuery = $state('join');
 
 	// Reactively rebuild adapter when selectedQuery changes (and db is ready)
-	$: if (db && ready) {
-		adapter = createPGLiteAdapter({ db, query: queries[selectedQuery].sql });
-	}
+	$effect(() => {
+		if (db && ready) {
+			adapter = createPGLiteAdapter({ db, query: queries[selectedQuery].sql });
+		}
+	});
 
 	const queries: Record<string, { label: string; sql: string; description: string }> = {
 		join: {
@@ -114,7 +116,7 @@
 			{#each Object.entries(queries) as [key, q]}
 				<button
 					class:active={selectedQuery === key}
-					on:click={() => selectedQuery = key}
+					onclick={() => selectedQuery = key}
 				>{q.label}</button>
 			{/each}
 		</div>

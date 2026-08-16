@@ -9,31 +9,42 @@
 
 	import { onMount } from 'svelte';
 
-	export let x: number;
-	export let y: number;
-	export let value: unknown;
-	export let columnName: string;
-	export let columnLabel: string;
-	export let isNumeric: boolean = false;
-
-	export let onFilterEquals: (columnName: string, value: unknown) => void;
-	export let onFilterNotEquals: (columnName: string, value: unknown) => void;
-	export let onFilterGreaterThan: ((columnName: string, value: unknown) => void) | undefined =
-		undefined;
-	export let onFilterLessThan: ((columnName: string, value: unknown) => void) | undefined =
-		undefined;
-	export let onClose: () => void;
+	let {
+		x,
+		y,
+		value,
+		columnName,
+		columnLabel,
+		isNumeric = false,
+		onFilterEquals,
+		onFilterNotEquals,
+		onFilterGreaterThan = undefined,
+		onFilterLessThan = undefined,
+		onClose
+	}: {
+		x: number;
+		y: number;
+		value: unknown;
+		columnName: string;
+		columnLabel: string;
+		isNumeric?: boolean;
+		onFilterEquals: (columnName: string, value: unknown) => void;
+		onFilterNotEquals: (columnName: string, value: unknown) => void;
+		onFilterGreaterThan?: ((columnName: string, value: unknown) => void) | undefined;
+		onFilterLessThan?: ((columnName: string, value: unknown) => void) | undefined;
+		onClose: () => void;
+	} = $props();
 
 	let menuRef: HTMLDivElement;
 
 	// Truncate display value
-	$: displayValue = (() => {
+	let displayValue = $derived.by(() => {
 		const str = String(value ?? '');
 		return str.length > 30 ? str.substring(0, 27) + '...' : str;
-	})();
+	});
 
 	// Keep menu in viewport
-	$: adjustedPosition = (() => {
+	let adjustedPosition = $derived.by(() => {
 		let adjustedX = x;
 		let adjustedY = y;
 
@@ -50,7 +61,7 @@
 		}
 
 		return { x: adjustedX, y: adjustedY };
-	})();
+	});
 
 	function handleFilterEquals() {
 		onFilterEquals(columnName, value);
@@ -107,7 +118,7 @@
 		<span class="column-name">{columnLabel}</span>
 	</div>
 
-	<button class="menu-item" on:click={handleFilterEquals} role="menuitem">
+	<button class="menu-item" onclick={handleFilterEquals} role="menuitem">
 		<svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 			<path
 				stroke-linecap="round"
@@ -119,7 +130,7 @@
 		<span>Filter by "<strong>{displayValue}</strong>"</span>
 	</button>
 
-	<button class="menu-item" on:click={handleFilterNotEquals} role="menuitem">
+	<button class="menu-item" onclick={handleFilterNotEquals} role="menuitem">
 		<svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 			<path
 				stroke-linecap="round"
@@ -134,7 +145,7 @@
 	{#if isNumeric}
 		<div class="menu-divider"></div>
 
-		<button class="menu-item" on:click={handleFilterGreaterThan} role="menuitem">
+		<button class="menu-item" onclick={handleFilterGreaterThan} role="menuitem">
 			<svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path
 					stroke-linecap="round"
@@ -146,7 +157,7 @@
 			<span>Greater than <strong>{displayValue}</strong></span>
 		</button>
 
-		<button class="menu-item" on:click={handleFilterLessThan} role="menuitem">
+		<button class="menu-item" onclick={handleFilterLessThan} role="menuitem">
 			<svg class="menu-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path
 					stroke-linecap="round"

@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.10.0 — 2026-08-16
+
+### Breaking
+
+- **Svelte 5 only** — All components migrated to Svelte 5 runes (`$props()`, `$derived`, `$effect`, `$state()`). Svelte 4 is no longer supported. Pin `@shotleybuilder/svelte-gridlite-kit@^0.9.0` if you need Svelte 4 compatibility — a frozen `svelte-4` branch is available.
+- **Slots → Snippets** — Named slots (`slot="cell"`, `slot="toolbar-start"`, `slot="toolbar-end"`, `slot="row-detail"`) are now Svelte 5 snippets. Migration:
+  ```svelte
+  <!-- Before (Svelte 4) -->
+  <svelte:fragment slot="cell" let:value let:row let:column>
+    {value}
+  </svelte:fragment>
+
+  <!-- After (Svelte 5) -->
+  {#snippet cell({ value, row, column })}
+    {value}
+  {/snippet}
+  ```
+- **Peer dependency** — `svelte` peer dep changed from `^4.0.0 || ^5.0.0` to `^5.0.0`
+
+### Changed
+
+- All `on:event` directives replaced with `onevent` attributes
+- `$$slots` checks replaced with snippet existence checks
+- `<svelte:self>` replaced with self-import in FilterGroup
+- Dev dependencies updated: vite ^6.0.0, @sveltejs/vite-plugin-svelte ^5.0.0, svelte-check ^4.0.0
+
+### Affected packages
+
+- `@shotleybuilder/svelte-gridlite-kit` 0.9.0 → 0.10.0
+
+### Migration
+
+- Update `svelte` to `^5.0.0`
+- Update `vite` to `^6.0.0` and `@sveltejs/vite-plugin-svelte` to `^5.0.0`
+- Convert named slot usage to snippet syntax (see Breaking section above)
+- No adapter changes required — PGLite and TanStack DB adapters are unaffected
+
 ## 0.9.0 — 2026-08-16
 
 ### Added

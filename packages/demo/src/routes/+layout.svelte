@@ -4,10 +4,13 @@
 	<span class="nav-title">svelte-gridlite-kit dev</span>
 </nav>
 
-<slot />
+{@render children?.()}
 
-<script>
+<script lang="ts">
+	import type { Snippet } from 'svelte';
 	import { page } from '$app/stores';
+
+	let { children }: { children?: Snippet } = $props();
 </script>
 
 <style>

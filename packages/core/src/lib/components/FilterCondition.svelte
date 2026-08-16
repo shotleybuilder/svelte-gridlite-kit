@@ -19,36 +19,46 @@
 	import { getOperatorsForType } from '../utils/filters.js';
 	import { onMount, tick } from 'svelte';
 
-	export let condition: FilterCondition;
-	export let columns: ColumnMetadata[];
-	export let columnConfigs: ColumnConfig[] = [];
-	export let columnValues: string[] = [];
-	export let numericRange: { min: number; max: number } | null = null;
-	export let onUpdate: (condition: FilterCondition) => void;
-	export let onRemove: () => void;
+	let {
+		condition,
+		columns,
+		columnConfigs = [],
+		columnValues = [],
+		numericRange = null,
+		onUpdate,
+		onRemove
+	}: {
+		condition: FilterCondition;
+		columns: ColumnMetadata[];
+		columnConfigs?: ColumnConfig[];
+		columnValues?: string[];
+		numericRange?: { min: number; max: number } | null;
+		onUpdate: (condition: FilterCondition) => void;
+		onRemove: () => void;
+	} = $props();
 
 	// Value mode: 'value' = literal input (default), 'column' = compare against another column
-	$: valueMode = condition.valueColumn ? 'column' : 'value';
+	let valueMode = $derived(condition.valueColumn ? 'column' : 'value');
 
 	// Fuzzy search state for field picker
-	let searchTerm = '';
-	let showDropdown = false;
-	let highlightedIndex = 0;
-	let searchInputRef: HTMLInputElement;
-	let dropdownRef: HTMLDivElement;
+	let searchTerm = $state('');
+	let showDropdown = $state(false);
+	let highlightedIndex = $state(0);
+	let searchInputRef = $state<HTMLInputElement>(undefined!);
+	let dropdownRef = $state<HTMLDivElement>(undefined!);
 
 	// RHS column picker state (for column comparison mode)
-	let rhsSearchTerm = '';
-	let showRhsDropdown = false;
-	let rhsHighlightedIndex = 0;
-	let rhsSearchInputRef: HTMLInputElement;
-	let rhsDropdownRef: HTMLDivElement;
+	let rhsSearchTerm = $state('');
+	let showRhsDropdown = $state(false);
+	let rhsHighlightedIndex = $state(0);
+	let rhsSearchInputRef = $state<HTMLInputElement>(undefined!);
+	let rhsDropdownRef = $state<HTMLDivElement>(undefined!);
 
 	// Value suggestions state
-	let showValueSuggestions = false;
-	let valueSuggestionIndex = 0;
-	let valueInputRef: HTMLInputElement;
-	let valueSuggestionsRef: HTMLDivElement;
+	let showValueSuggestions = $state(false);
+	let valueSuggestionIndex = $state(0);
+	let valueInputRef = $state<HTMLInputElement>(undefined!);
+	let valueSuggestionsRef = $state<HTMLDivElement>(undefined!);
 
 	// Operators that support column-to-column comparison
 	const COLUMN_COMPARISON_OPERATORS: FilterOperator[] = [
@@ -63,8 +73,8 @@
 		'is_before', 'is_after'
 	];
 
-	$: supportsColumnComparison = COLUMN_COMPARISON_OPERATORS.includes(condition.operator);
-	$: supportsInterval = INTERVAL_OPERATORS.includes(condition.operator);
+	let supportsColumnComparison = $derived(COLUMN_COMPARISON_OPERATORS.includes(condition.operator));
+	let supportsInterval = $derived(INTERVAL_OPERATORS.includes(condition.operator));
 
 	onMount(() => {
 		function handleClickOutside(event: MouseEvent) {
@@ -97,43 +107,43 @@
 
 	// ─── Computed ─────────────────────────────────────────────────────────────
 
-	$: selectedColumn = condition.field
+	let selectedColumn = $derived(condition.field
 		? columns.find((c) => c.name === condition.field)
-		: null;
+		: null);
 
-	$: selectedColumnLabel = (() => {
+	let selectedColumnLabel = $derived.by(() => {
 		if (!condition.field) return '';
 		return selectedColumn ? getColumnLabel(selectedColumn) : condition.field;
-	})();
+	});
 
-	$: columnDataType = (() => {
+	let columnDataType = $derived.by(() => {
 		if (!selectedColumn) return 'text' as ColumnDataType;
 		return getColumnDataType(selectedColumn);
-	})();
+	});
 
-	$: selectOptions = (() => {
+	let selectOptions = $derived.by(() => {
 		if (!selectedColumn) return [];
 		const cfg = columnConfigs.find((c) => c.name === selectedColumn!.name);
 		return cfg?.selectOptions ?? [];
-	})();
+	});
 
-	$: operatorOptions = getOperatorsForType(columnDataType);
+	let operatorOptions = $derived(getOperatorsForType(columnDataType));
 
 	// Reset operator if not valid for new data type
-	$: {
+	$effect(() => {
 		if (condition.field && operatorOptions.length > 0) {
 			const currentOperatorValid = operatorOptions.some((op) => op.value === condition.operator);
 			if (!currentOperatorValid) {
 				onUpdate({ ...condition, operator: operatorOptions[0].value });
 			}
 		}
-	}
+	});
 
-	$: valueDisabled = condition.operator === 'is_empty' || condition.operator === 'is_not_empty';
+	let valueDisabled = $derived(condition.operator === 'is_empty' || condition.operator === 'is_not_empty');
 
 	// ─── Column search/filter ─────────────────────────────────────────────────
 
-	$: filteredColumns = (() => {
+	let filteredColumns = $derived.by(() => {
 		if (!searchTerm.trim()) {
 			return columns.map((col) => ({
 				column: col,
@@ -151,17 +161,19 @@
 			}
 		}
 		return results.sort((a, b) => b.score - a.score);
-	})();
+	});
 
-	$: if (filteredColumns) {
-		highlightedIndex = 0;
-	}
+	$effect(() => {
+		if (filteredColumns) {
+			highlightedIndex = 0;
+		}
+	});
 
 	// ─── Value suggestions ────────────────────────────────────────────────────
 
-	$: canShowSuggestions = columnValues.length > 0 && !valueDisabled;
+	let canShowSuggestions = $derived(columnValues.length > 0 && !valueDisabled);
 
-	$: filteredValueSuggestions = (() => {
+	let filteredValueSuggestions = $derived.by(() => {
 		if (!columnValues || columnValues.length === 0) return [];
 
 		const currentValue = String(condition.value || '');
@@ -181,24 +193,26 @@
 			}
 		}
 		return results.sort((a, b) => b.score - a.score).slice(0, 50);
-	})();
+	});
 
-	$: if (filteredValueSuggestions) {
-		valueSuggestionIndex = 0;
-	}
+	$effect(() => {
+		if (filteredValueSuggestions) {
+			valueSuggestionIndex = 0;
+		}
+	});
 
 	// ─── RHS column search/filter (column comparison mode) ───────────────────
 
-	$: rhsSelectedColumn = condition.valueColumn
+	let rhsSelectedColumn = $derived(condition.valueColumn
 		? columns.find((c) => c.name === condition.valueColumn)
-		: null;
+		: null);
 
-	$: rhsSelectedColumnLabel = (() => {
+	let rhsSelectedColumnLabel = $derived.by(() => {
 		if (!condition.valueColumn) return '';
 		return rhsSelectedColumn ? getColumnLabel(rhsSelectedColumn) : condition.valueColumn;
-	})();
+	});
 
-	$: filteredRhsColumns = (() => {
+	let filteredRhsColumns = $derived.by(() => {
 		if (!rhsSearchTerm.trim()) {
 			return columns.map((col) => ({
 				column: col,
@@ -216,18 +230,20 @@
 			}
 		}
 		return results.sort((a, b) => b.score - a.score);
-	})();
+	});
 
-	$: if (filteredRhsColumns) {
-		rhsHighlightedIndex = 0;
-	}
+	$effect(() => {
+		if (filteredRhsColumns) {
+			rhsHighlightedIndex = 0;
+		}
+	});
 
 	// ─── Interval offset validation ──────────────────────────────────────────
 
-	$: intervalError = (() => {
+	let intervalError = $derived.by(() => {
 		if (!condition.intervalOffset || !condition.intervalOffset.trim()) return '';
 		return isValidInterval(condition.intervalOffset) ? '' : 'Invalid interval (e.g. "6 months")';
-	})();
+	});
 
 	// ─── Event handlers ───────────────────────────────────────────────────────
 
@@ -424,7 +440,7 @@
 		<button
 			class="field-picker-trigger"
 			class:has-value={condition.field}
-			on:click={openDropdown}
+			onclick={openDropdown}
 			type="button"
 		>
 			<span class="field-picker-text">
@@ -444,7 +460,7 @@
 						class="field-search"
 						placeholder="Search fields..."
 						bind:value={searchTerm}
-						on:keydown={handleSearchKeydown}
+						onkeydown={handleSearchKeydown}
 					/>
 				</div>
 
@@ -455,8 +471,8 @@
 							class="field-option"
 							class:highlighted={i === highlightedIndex}
 							class:selected={column.name === condition.field}
-							on:click={() => selectColumn(column)}
-							on:mouseenter={() => (highlightedIndex = i)}
+							onclick={() => selectColumn(column)}
+							onmouseenter={() => (highlightedIndex = i)}
 							type="button"
 						>
 							{#if matchedIndices.length > 0}
@@ -479,7 +495,7 @@
 		{/if}
 	</div>
 
-	<select class="operator-select" value={condition.operator} on:change={handleOperatorChange}>
+	<select class="operator-select" value={condition.operator} onchange={handleOperatorChange}>
 		{#each operatorOptions as option}
 			<option value={option.value}>{option.label}</option>
 		{/each}
@@ -489,7 +505,7 @@
 		<button
 			class="value-mode-toggle"
 			class:column-mode={valueMode === 'column'}
-			on:click={toggleValueMode}
+			onclick={toggleValueMode}
 			type="button"
 			title={valueMode === 'value' ? 'Switch to column comparison' : 'Switch to literal value'}
 		>
@@ -512,7 +528,7 @@
 				<button
 					class="field-picker-trigger"
 					class:has-value={condition.valueColumn}
-					on:click={openRhsDropdown}
+					onclick={openRhsDropdown}
 					type="button"
 				>
 					<span class="field-picker-text">
@@ -532,7 +548,7 @@
 								class="field-search"
 								placeholder="Search fields..."
 								bind:value={rhsSearchTerm}
-								on:keydown={handleRhsSearchKeydown}
+								onkeydown={handleRhsSearchKeydown}
 							/>
 						</div>
 
@@ -543,8 +559,8 @@
 									class="field-option"
 									class:highlighted={i === rhsHighlightedIndex}
 									class:selected={column.name === condition.valueColumn}
-									on:click={() => selectRhsColumn(column)}
-									on:mouseenter={() => (rhsHighlightedIndex = i)}
+									onclick={() => selectRhsColumn(column)}
+									onmouseenter={() => (rhsHighlightedIndex = i)}
 									type="button"
 								>
 									{#if matchedIndices.length > 0}
@@ -573,7 +589,7 @@
 					class="interval-input"
 					class:has-error={!!intervalError}
 					value={condition.intervalOffset || ''}
-					on:input={handleIntervalChange}
+					oninput={handleIntervalChange}
 					placeholder="+ offset (e.g. 6 months)"
 				/>
 				{#if intervalError}
@@ -588,7 +604,7 @@
 				<select
 					class="value-input"
 					value={condition.value || ''}
-					on:change={handleValueChange}
+					onchange={handleValueChange}
 					disabled={valueDisabled}
 				>
 					<option value="">Select...</option>
@@ -599,7 +615,7 @@
 				<select
 					class="value-input"
 					value={condition.value || ''}
-					on:change={handleValueChange}
+					onchange={handleValueChange}
 					disabled={valueDisabled}
 				>
 					<option value="">Select...</option>
@@ -613,7 +629,7 @@
 					type="date"
 					class="value-input"
 					value={condition.value || ''}
-					on:input={handleValueChange}
+					oninput={handleValueChange}
 					disabled={valueDisabled}
 				/>
 			{:else if columnDataType === 'number'}
@@ -622,7 +638,7 @@
 					type="number"
 					class="value-input"
 					value={condition.value || ''}
-					on:input={handleValueChange}
+					oninput={handleValueChange}
 					disabled={valueDisabled}
 					placeholder={valueDisabled ? 'N/A' : numericRange ? `${numericRange.min} - ${numericRange.max}` : 'Enter number...'}
 				/>
@@ -637,9 +653,9 @@
 					type="text"
 					class="value-input"
 					value={condition.value || ''}
-					on:input={handleValueChange}
-					on:focus={handleValueFocus}
-					on:keydown={handleValueKeydown}
+					oninput={handleValueChange}
+					onfocus={handleValueFocus}
+					onkeydown={handleValueKeydown}
 					disabled={valueDisabled}
 					placeholder={valueDisabled ? 'N/A' : 'Enter value...'}
 					autocomplete="off"
@@ -651,8 +667,8 @@
 							<button
 								class="suggestion-option"
 								class:highlighted={i === valueSuggestionIndex}
-								on:click={() => selectValueSuggestion(value)}
-								on:mouseenter={() => (valueSuggestionIndex = i)}
+								onclick={() => selectValueSuggestion(value)}
+								onmouseenter={() => (valueSuggestionIndex = i)}
 								type="button"
 							>
 								{#if matchedIndices.length > 0}
@@ -679,7 +695,7 @@
 		</div>
 	{/if}
 
-	<button class="remove-btn" on:click={onRemove} title="Remove condition" type="button">×</button>
+	<button class="remove-btn" onclick={onRemove} title="Remove condition" type="button">×</button>
 </div>
 
 <style>

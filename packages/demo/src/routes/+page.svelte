@@ -23,10 +23,10 @@
 	// --- PGLite Instance ---
 	// GridLite requires a PGlite instance with the `live` extension.
 	// The `live` extension enables reactive queries that push updates to the UI.
-	let db: PGliteWithLive | null = null;
-	let adapter: QueryAdapter | null = null;
-	let ready = false;
-	let initError: string | null = null;
+	let db: PGliteWithLive | null = $state(null);
+	let adapter: QueryAdapter | null = $state(null);
+	let ready = $state(false);
+	let initError: string | null = $state(null);
 
 	// --- Component Reference ---
 	// `bind:this` gives access to GridLite methods like refresh(), setFilters(), etc.
@@ -34,21 +34,21 @@
 
 	// --- Feature Toggles ---
 	// Each maps to a key in the `features` prop. Toggle to enable/disable at runtime.
-	let pageSize = 10;
-	let paginationEnabled = true;
-	let filteringEnabled = true;
-	let sortingEnabled = true;
-	let groupingEnabled = true;
-	let rowDetailEnabled = true;
-	let globalSearchEnabled = true;
-	let columnVisibilityEnabled = true;
-	let columnResizingEnabled = true;
-	let columnReorderingEnabled = true;
+	let pageSize = $state(10);
+	let paginationEnabled = $state(true);
+	let filteringEnabled = $state(true);
+	let sortingEnabled = $state(true);
+	let groupingEnabled = $state(true);
+	let rowDetailEnabled = $state(true);
+	let globalSearchEnabled = $state(true);
+	let columnVisibilityEnabled = $state(true);
+	let columnResizingEnabled = $state(true);
+	let columnReorderingEnabled = $state(true);
 
 	// --- Toolbar Layout ---
 	// Controls how toolbar controls are arranged. See .claude/skills/styling/SKILL.md
 	// Options: 'airtable' | 'excel' | 'shadcn' | 'aggrid'
-	let selectedLayout: ToolbarLayout = 'airtable';
+	let selectedLayout: ToolbarLayout = $state('airtable');
 	const layoutOptions: ToolbarLayout[] = ['airtable', 'excel', 'shadcn', 'aggrid'];
 
 	// --- Seed Data Constants ---
