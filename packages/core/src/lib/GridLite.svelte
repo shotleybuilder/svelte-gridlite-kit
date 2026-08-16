@@ -75,7 +75,7 @@
 	let filterLogic: FilterLogic = config?.filterLogic ?? 'and';
 	let sorting: SortConfig[] = config?.defaultSorting ?? [];
 	let grouping: GroupConfig[] = config?.defaultGrouping ?? [];
-	let globalFilter = '';
+	let globalFilter = config?.defaultGlobalSearch ?? '';
 	let page = 0;
 	let pageSize = config?.pagination?.pageSize ?? 25;
 	let totalRows = 0;

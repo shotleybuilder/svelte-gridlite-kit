@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0 — 2026-08-16
+
+### Added
+
+- **`config.defaultGlobalSearch`** — Set the initial global search term when the grid mounts. Enables URL state persistence: read the search param on page load and pass it as the default. `applyConfig({ globalFilter })` was already supported for runtime updates; this completes the write path. (#34)
+
+### Affected packages
+
+- `@shotleybuilder/svelte-gridlite-kit` 0.7.2 → 0.8.0
+
 ## 0.7.2 — 2026-08-16
 
 ### Fixed

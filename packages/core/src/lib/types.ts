@@ -70,6 +70,9 @@ export interface GridConfig {
   /** Default grouping applied on load */
   defaultGrouping?: GroupConfig[];
 
+  /** Default global search term applied on load */
+  defaultGlobalSearch?: string;
+
   /** Pagination config */
   pagination?: {
     pageSize: number;
