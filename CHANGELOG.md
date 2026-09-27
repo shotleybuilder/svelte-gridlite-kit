@@ -1,5 +1,15 @@
 # Changelog
 
+## Adapters: pglite 0.8.0, tanstack-db 0.9.0 — 2026-09-27
+
+### Fixed
+
+- **Peer range for svelte-gridlite-kit 0.10** (#41). `@shotleybuilder/gridlite-adapter-pglite@0.8.0` and `@shotleybuilder/gridlite-adapter-tanstack-db@0.9.0` declare `"@shotleybuilder/svelte-gridlite-kit": "^0.10.0"`. The previous releases (0.7.3, 0.8.0) declared `^0.7.0`, so installing them with kit 0.10 failed. The code is unchanged; it was already built and tested against 0.10. Kit 0.9 and earlier (Svelte 4) stay on pglite 0.7.3 / tanstack-db 0.8.0.
+
+### Added
+
+- `scripts/release/check-peers.mjs` fails if an adapter's peer range doesn't include the core version or contains `workspace:`. It runs in `pnpm check` and in each adapter's `prepublishOnly`.
+
 ## 0.10.0 — 2026-08-16
 
 ### Breaking

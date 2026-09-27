@@ -11,7 +11,8 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "test:run": "pnpm -r test:run",
-    "check": "pnpm -r check",
+    "check": "node scripts/release/check-peers.mjs && pnpm -r check",
+    "check:peers": "node scripts/release/check-peers.mjs",
     "lint": "pnpm -r lint",
     "format": "pnpm -r format",
     "package": "pnpm --filter @shotleybuilder/svelte-gridlite-kit package"
